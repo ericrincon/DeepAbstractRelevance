@@ -11,7 +11,7 @@ from gensim.models import Word2Vec
 
 def main():
     try:
-        opts, args = getopt.getopt(sys.argv[1:], '', ['n_feature_maps=', 'epochs=',
+        opts, args = getopt.getopt(sys.argv[1:], '', ['n_feature_maps=', 'epochs=', 'max_words',
                                                       'undersample=', 'n_feature_maps=', 'criterion=',
                                                       'optimizer=', 'max_words=', 'layers=',
                                                       'hyperopt=', 'model_name=', 'w2v_path=', 'tacc='])
