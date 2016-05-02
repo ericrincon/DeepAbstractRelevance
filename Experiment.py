@@ -14,7 +14,7 @@ from nltk.corpus import stopwords
 
 def main():
     try:
-        opts, args = getopt.getopt(sys.argv[1:], '', ['n_feature_maps=', 'epochs=', 'max_words',
+        opts, args = getopt.getopt(sys.argv[1:], '', ['n_feature_maps=', 'epochs=', 'max_words', 'dropout_p='
                                                       'undersample=', 'n_feature_maps=', 'criterion=',
                                                       'optimizer=', 'max_words=', 'layers=',
                                                       'hyperopt=', 'model_name=', 'w2v_path=', 'tacc=', 'use_all_date='])
@@ -24,19 +24,20 @@ def main():
 
     w2v_path = '/Users/ericrincon/PycharmProjects/Deep-PICO/wikipedia-pubmed-and-PMC-w2v.bin'
     n_feature_maps = 100
-    epochs = 20
+    epochs = 50
     criterion = 'categorical_crossentropy'
     optimizer = 'adam'
     model_name = 'model'
     w2v_size = 200
     activation = 'elu'
-    dense_sizes = [100, 100]
-    filter_sizes = [2, 3, 4, 5]
-    max_words = 400
+    dense_sizes = [300]
+    filter_sizes = [2, 3, 5]
+    max_words = 500
     word_vector_size = 200
     using_tacc = False
     undersample = True
     use_all_date = False
+    p = .5
 
     for opt, arg in opts:
         if opt == '--window_size':
@@ -44,6 +45,8 @@ def main():
         elif opt == '--wiki':
             if arg == 0:
                 wiki = False
+        elif opt == '--dropout_p':
+            p = int(arg)
         elif opt == '--epochs':
             epochs = int(arg)
         elif opt == '--layers':
@@ -97,10 +100,10 @@ def main():
     print('Loaded data...')
 
     run_on_all_data(X_list, y_list, model_name, max_words, w2v_size, n_feature_maps, dense_sizes, optimizer, criterion,
-                    epochs, filter_sizes, activation, undersample)
+                    epochs, filter_sizes, activation, undersample, p)
 
 def run_on_all_data(X_list, y_list, model_name, max_words, w2v_size, n_feature_maps, dense_sizes, optimizer, criterion, epochs,
-                  filter_sizes, activation, undersample):
+                  filter_sizes, activation, undersample, p):
     for X, y in zip(X_list, y_list):
         n = X.shape[0]
         kf = KFold(n, random_state=1337, shuffle=True, n_folds=5)
@@ -128,20 +131,20 @@ def run_on_all_data(X_list, y_list, model_name, max_words, w2v_size, n_feature_m
             _y = [y_train, y_test]
 
             run_model(_X, _y, model_name, fold_idx, max_words, w2v_size, n_feature_maps, dense_sizes, optimizer, criterion, epochs,
-                      filter_sizes, activation)
+                      filter_sizes, activation, p)
 
 
 def run_model(X, y, model_name, fold_idx, max_words, w2v_size, n_feature_maps, dense_sizes, optimizer, criterion, epochs,
-              filter_sizes, activation):
+              filter_sizes, activation, p):
     X_train, X_test = X
     y_train, y_test = y
 
     temp_model_name = model_name + '_fold_{}.h5'.format(fold_idx + 1)
     cnn = CNN(n_classes=2, max_words=max_words, w2v_size=w2v_size, vocab_size=1000, use_embedding=False,
               filter_sizes=filter_sizes, n_filters=n_feature_maps, dense_layer_sizes=dense_sizes.copy(),
-              name=temp_model_name, activation_function=activation)
+              name=temp_model_name, activation_function=activation, dropout_p=p)
 
-    cnn.train(X_train, y_train, n_epochs=epochs, optim_algo=optimizer, criterion=criterion)
+    cnn.train(X_train, y_train, n_epochs=epochs, optim_algo=optimizer, criterion=criterion, verbose=1)
     accuracy, f1_score, precision, auc, recall = cnn.test(X_test, y_test)
 
     print("Accuracy: {}".format(accuracy))

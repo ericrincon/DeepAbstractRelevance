@@ -3,7 +3,7 @@ from keras.layers import Input,Embedding, merge, Dense
 from keras.models import Model
 
 from keras.layers.convolutional import Convolution2D, MaxPooling2D
-from keras.layers.core import Flatten, Activation
+from keras.layers.core import Flatten, Activation, Dropout
 
 from keras.optimizers import Adam, SGD
 
@@ -18,13 +18,13 @@ import numpy as np
 # Paper: http://arxiv.org/abs/1408.5882
 class CNN:
     def __init__(self, n_classes, max_words, w2v_size, vocab_size, use_embedding, filter_sizes, n_filters,
-                 dense_layer_sizes, name, activation_function):
+                 dense_layer_sizes, name, activation_function, dropout_p):
         self.model = self.build_model(n_classes, max_words, w2v_size, vocab_size, use_embedding, filter_sizes,
-                                      n_filters, dense_layer_sizes, activation_function)
+                                      n_filters, dense_layer_sizes, activation_function, dropout_p)
         self.model_name = name
 
     def build_model(self, n_classes, max_words, w2v_size, vocab_size, use_embedding, filter_sizes, n_filters,
-                    dense_layer_sizes, activation_function):
+                    dense_layer_sizes, activation_function, dropout_p):
 
         # From the paper http://arxiv.org/pdf/1511.07289v1.pdf
         # Supposed to perform better but lets see about that
@@ -62,7 +62,8 @@ class CNN:
             for dense_layer_size in dense_layer_sizes:
                 dense_layer = Dense(dense_layer_size)(dense_layer_sizes[i-1])
                 dense_activation_layer = Activation(activation_function)(dense_layer)
-                dense_layers.append(dense_activation_layer)
+                dropout_layer = Dropout(dropout_p)(dense_activation_layer)
+                dense_layers.append(dropout_layer)
                 i += 1
 
         # Add last layer
@@ -83,10 +84,11 @@ class CNN:
 
         self.model.compile(optimizer=optim_algo, loss=criterion)
 
-        early_stopping = EarlyStopping(monitor='val_loss', patience=4, mode='auto')
+        early_stopping = EarlyStopping(monitor='val_loss', patience=10, mode='auto')
 
         # verbose: 0 for no logging to stdout, 1 for progress bar logging, 2 for one log line per epoch.
-        self.model.fit(x, y, nb_epoch=n_epochs, callbacks=[early_stopping], validation_split=0.2, verbose=verbose)
+        self.model.fit(x, y, nb_epoch=n_epochs, callbacks=[early_stopping], validation_split=0.2,
+                       verbose=verbose, batch_size=16)
 
         if save_model:
             self.model.save_weights(self.model_name + '.h5', overwrite=True)
