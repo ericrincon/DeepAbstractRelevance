@@ -13,7 +13,10 @@ from keras.callbacks import EarlyStopping
 import sklearn.metrics as metrics
 import numpy as np
 
-class CNN():
+
+# Implementation of Convolutional Neural Networks for Sentence Classification
+# Paper: http://arxiv.org/abs/1408.5882
+class CNN:
     def __init__(self, n_classes, max_words, w2v_size, vocab_size, use_embedding, filter_sizes, n_filters,
                  dense_layer_sizes, name, activation_function):
         self.model = self.build_model(n_classes, max_words, w2v_size, vocab_size, use_embedding, filter_sizes,
@@ -81,6 +84,7 @@ class CNN():
         self.model.compile(optimizer=optim_algo, loss=criterion)
 
         early_stopping = EarlyStopping(monitor='val_loss', patience=4, mode='auto')
+
         # verbose: 0 for no logging to stdout, 1 for progress bar logging, 2 for one log line per epoch.
         self.model.fit(x, y, nb_epoch=n_epochs, callbacks=[early_stopping], validation_split=0.2, verbose=verbose)
 
@@ -105,8 +109,6 @@ class CNN():
 
         return accuracy, f1_score, precision, auc, recall
 
-    # Graph model uses a dictionary as input so wrap the Keras function to makes it easier to
-    # use!
     def predict_classes(self, x):
         predictions = self.model.predict(x)
         predicted_classes = np.argmax(predictions, axis=1)
@@ -115,3 +117,4 @@ class CNN():
 
     def save(self):
         self.model.save_weights(self.model_name)
+# Implementation of Modelling, Visualising and Summarising Documents with a Single Convolutional Neural Network

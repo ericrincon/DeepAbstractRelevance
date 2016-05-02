@@ -15,7 +15,7 @@ def main():
         opts, args = getopt.getopt(sys.argv[1:], '', ['n_feature_maps=', 'epochs=', 'max_words',
                                                       'undersample=', 'n_feature_maps=', 'criterion=',
                                                       'optimizer=', 'max_words=', 'layers=',
-                                                      'hyperopt=', 'model_name=', 'w2v_path=', 'tacc='])
+                                                      'hyperopt=', 'model_name=', 'w2v_path=', 'tacc=', 'use_all_date='])
     except getopt.GetoptError as error:
         print(error)
         sys.exit(2)
@@ -27,13 +27,14 @@ def main():
     optimizer = 'adam'
     model_name = 'model'
     w2v_size = 200
-    activation = 'relu'
+    activation = 'elu'
     dense_sizes = [100, 100]
     filter_sizes = [2, 3, 4, 5]
-    max_words = 300
+    max_words = 400
     word_vector_size = 200
     using_tacc = False
     undersample = False
+    use_all_date = False
 
     for opt, arg in opts:
         if opt == '--window_size':
@@ -70,6 +71,9 @@ def main():
         elif opt == '--tacc':
             if int(arg) == 1:
                 using_tacc = True
+        elif opt == '--use_all_data':
+            if int(arg) == 1:
+                use_all_date = True
         else:
             print("Option {} is not valid!".format(opt))
     if using_tacc:
@@ -77,48 +81,74 @@ def main():
     print('Loading Word2Vec...')
     w2v = Word2Vec.load_word2vec_format(w2v_path, binary=True)
     print('Loaded Word2Vec...')
+    X_list = []
+    y_list = []
 
     print('Loading data...')
-    X, y = get_data(max_words, word_vector_size, w2v)
+    if use_all_date:
+        X, y = get_data(max_words, word_vector_size, w2v)
+
+        X_list.append(X)
+        y_list.append(y)
+    else:
+        X_list, y_list = get_data_separately(max_words, word_vector_size, w2v)
     print('Loaded data...')
-    n = X.shape[0]
-    kf = KFold(n, random_state=1337, shuffle=True, n_folds=5)
 
-    for fold_idx, (train, test) in enumerate(kf):
-        X_train, y_train = X[train, :, :, :], y[train, :]
-        X_test, y_test = X[test, :, :, :], y[test, :]
+    run_on_all_data(X_list, y_list, model_name, max_words, w2v_size, n_feature_maps, dense_sizes, optimizer, criterion,
+                    epochs, filter_sizes, activation, undersample)
 
-        if undersample:
-            idx_undersample = np.where(y_train[:, 1] == 0)[0]
-            idx_postive = np.where(y_train[:, 1] == 1)[0]
-            random_negative_sample = np.random.choice(idx_undersample, idx_postive.shape[0])
+def run_on_all_data(X_list, y_list, model_name, max_words, w2v_size, n_feature_maps, dense_sizes, optimizer, criterion, epochs,
+                  filter_sizes, activation, undersample):
+    for X, y in zip(X_list, y_list):
+        n = X.shape[0]
+        kf = KFold(n, random_state=1337, shuffle=True, n_folds=5)
 
-            X_train_postive = X_train[idx_postive, :, :, :]
+        for fold_idx, (train, test) in enumerate(kf):
+            X_train, y_train = X[train, :, :, :], y[train, :]
+            X_test, y_test = X[test, :, :, :], y[test, :]
 
-            X_train_negative = X_train[random_negative_sample, :, :, :]
+            if undersample:
+                idx_undersample = np.where(y_train[:, 1] == 0)[0]
+                idx_postive = np.where(y_train[:, 1] == 1)[0]
+                random_negative_sample = np.random.choice(idx_undersample, idx_postive.shape[0])
 
-            y_train_postive = y_train[idx_postive, :]
-            y_train_negative = y_train[random_negative_sample, :]
+                X_train_postive = X_train[idx_postive, :, :, :]
 
-            X_train = np.vstack((X_train_postive, X_train_negative))
-            y_train = np.vstack((y_train_postive, y_train_negative))
+                X_train_negative = X_train[random_negative_sample, :, :, :]
+
+                y_train_postive = y_train[idx_postive, :]
+                y_train_negative = y_train[random_negative_sample, :]
+
+                X_train = np.vstack((X_train_postive, X_train_negative))
+                y_train = np.vstack((y_train_postive, y_train_negative))
+
+            _X = [X_train, X_test]
+            _y = [y_train, y_test]
+
+            run_model(_X, _y, model_name, fold_idx, max_words, w2v_size, n_feature_maps, dense_sizes, optimizer, criterion, epochs,
+                      filter_sizes, activation)
 
 
+def run_model(X, y, model_name, fold_idx, max_words, w2v_size, n_feature_maps, dense_sizes, optimizer, criterion, epochs,
+              filter_sizes, activation):
+    X_train, X_test = X
+    y_train, y_test = y
 
-        temp_model_name = model_name + '_fold_{}.h5'.format(fold_idx + 1)
-        cnn = CNN(n_classes=2, max_words=max_words, w2v_size=w2v_size, vocab_size=1000, use_embedding=False, filter_sizes=filter_sizes,
-                  n_filters=n_feature_maps, dense_layer_sizes=dense_sizes.copy(), name=temp_model_name, activation_function=activation)
+    temp_model_name = model_name + '_fold_{}.h5'.format(fold_idx + 1)
+    cnn = CNN(n_classes=2, max_words=max_words, w2v_size=w2v_size, vocab_size=1000, use_embedding=False,
+              filter_sizes=filter_sizes, n_filters=n_feature_maps, dense_layer_sizes=dense_sizes.copy(),
+              name=temp_model_name, activation_function=activation)
 
-        cnn.train(X_train, y_train, n_epochs=epochs, optim_algo=optimizer, criterion=criterion)
-        accuracy, f1_score, precision, auc, recall = cnn.test(X_test, y_test)
+    cnn.train(X_train, y_train, n_epochs=epochs, optim_algo=optimizer, criterion=criterion)
+    accuracy, f1_score, precision, auc, recall = cnn.test(X_test, y_test)
 
-        print("Accuracy: {}".format(accuracy))
-        print("F1: {}".format(f1_score))
-        print("Precision: {}".format(precision))
-        print("AUC: {}".format(auc))
-        print("Recall: {}".format(recall))
+    print("Accuracy: {}".format(accuracy))
+    print("F1: {}".format(f1_score))
+    print("Precision: {}".format(precision))
+    print("AUC: {}".format(auc))
+    print("Recall: {}".format(recall))
 
-        cnn.save()
+    cnn.save()
 
 
 def get_all_files(path):
@@ -133,6 +163,49 @@ def get_all_files(path):
             file_paths.append(os.path.join(path, name))
     return file_paths
 
+def get_data_separately(max_words, word_vector_size, w2v):
+    file_paths = get_all_files('Data')
+    X_list, y_list = [], []
+
+    for file in file_paths:
+        abstract_text, abstract_labels = extract_abstract_and_labels(file)
+
+        abstracts_as_words = []
+        labels = []
+        for i in range(abstract_text.shape[0]):
+            abstract = abstract_text.iloc[i]
+
+            if abstract == 'MISSING':
+                continue
+            else:
+                abstract_as_words = nltk.word_tokenize(abstract)
+                abstracts_as_words.append(abstract_as_words)
+                labels.append(abstract_labels.iloc[i])
+
+        X = np.zeros((len(abstracts_as_words), 1, max_words, word_vector_size))
+        y = np.zeros((len(labels), 2))
+
+        for i, (abstract, label) in enumerate(zip(abstracts_as_words, labels)):
+            word_matrix = abstract_to_w2v(abstract, max_words, w2v, word_vector_size)
+            X[i, 0, :, :] = word_matrix
+            if label == -1:
+                label = 0
+            y[i, label] = 1
+
+        X_list.append(X)
+        y_list.append(y)
+    return X_list, y_list
+
+
+def extract_abstract_and_labels(file):
+    data_frame = pd.read_csv(file)
+
+    abstract_text = data_frame.iloc[:, 4]
+    labels = data_frame.iloc[:, 6]
+
+    return abstract_text, labels
+
+
 def get_data(max_words, word_vector_size, w2v):
 
     file_paths = get_all_files('Data')
@@ -141,10 +214,7 @@ def get_data(max_words, word_vector_size, w2v):
     labels_df = pd.DataFrame()
 
     for file in file_paths:
-        data_frame = pd.read_csv(file)
-
-        abstract_text = data_frame.iloc[:, 4]
-        labels = data_frame.iloc[:, 6]
+        abstract_text, labels = extract_abstract_and_labels(file)
 
         abstract_text_df = pd.concat((abstract_text_df, abstract_text))
         labels_df = pd.concat((labels_df, labels))
