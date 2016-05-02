@@ -9,6 +9,8 @@ from CNN import CNN
 from sklearn.cross_validation import KFold
 from gensim.models import Word2Vec
 
+from nltk.corpus import stopwords
+
 
 def main():
     try:
@@ -33,7 +35,7 @@ def main():
     max_words = 400
     word_vector_size = 200
     using_tacc = False
-    undersample = False
+    undersample = True
     use_all_date = False
 
     for opt, arg in opts:
@@ -251,17 +253,26 @@ def get_data(max_words, word_vector_size, w2v):
     return X, y
 
 
-def abstract_to_w2v(abstract_as_words, max_words, w2v, word_vector_size):
+def abstract_to_w2v(abstract_as_words, max_words, w2v, word_vector_size, remove_stop_words=True):
+    if remove_stop_words:
+        stop = stopwords.words('english')
+    i = 0
     word_matrix = np.zeros((max_words, word_vector_size))
 
-    for i, word in enumerate(abstract_as_words):
+    for word in abstract_as_words:
+        if word in stop and remove_stop_words:
+            continue
+
         if i == max_words - 1:
             break
         try:
             word_vector = w2v[word]
             word_matrix[i, word_vector] = word_vector
+            i += 1
         except:
             continue
+
+
 
     return word_matrix
 
