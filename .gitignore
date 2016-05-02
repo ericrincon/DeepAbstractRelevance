@@ -1,0 +1,10 @@
+
+*.csv
+
+*.xml
+
+*.iml
+
+.idea/.name
+
+*.pyc

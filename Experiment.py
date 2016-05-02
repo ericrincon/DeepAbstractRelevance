@@ -11,35 +11,25 @@ from gensim.models import Word2Vec
 
 def main():
     try:
-        opts, args = getopt.getopt(sys.argv[1:], '', ['window_size=', 'wiki=', 'n_feature_maps=', 'epochs=',
+        opts, args = getopt.getopt(sys.argv[1:], '', ['n_feature_maps=', 'epochs=',
                                                       'undersample=', 'n_feature_maps=', 'criterion=',
-                                                      'optimizer=', 'model=', 'genia=', 'tacc=', 'layers=',
+                                                      'optimizer=', 'max_words=', 'layers=',
                                                       'hyperopt=', 'model_name='])
     except getopt.GetoptError as error:
         print(error)
         sys.exit(2)
 
     w2v_path = '/Users/ericrincon/PycharmProjects/Deep-PICO/wikipedia-pubmed-and-PMC-w2v.bin'
-    model_type = 'nn'
-    window_size = 5
-    wiki = True
     n_feature_maps = 100
     epochs = 20
-    undersample = False
-    binary_cross_entropy = False
     criterion = 'categorical_crossentropy'
     optimizer = 'adam'
-    k = 2
-    use_genia = False
-    using_tacc = False
-    layer_sizes = []
-    hyperopt = False
     model_name = 'model'
     w2v_size = 200
     activation = 'relu'
     dense_sizes = [100]
     filter_sizes = [2, 3, 4, 5]
-
+    max_words = 100
 
     for opt, arg in opts:
         if opt == '--window_size':
@@ -67,6 +57,8 @@ def main():
                 hyperopt = True
         elif opt == '--model_name':
             model_name = arg
+        elif opt == 'max_words ':
+            max_words = int(arg)
         else:
             print("Option {} is not valid!".format(opt))
     print('Loading Word2Vec...')
@@ -86,7 +78,7 @@ def main():
         cnn = CNN(n_classes=2, max_words=50, w2v_size=w2v_size, vocab_size=1000, use_embedding=False, filter_sizes=filter_sizes,
                   n_filters=n_feature_maps, dense_layer_sizes=dense_sizes.copy(), name=model_name, activation_function=activation)
 
-        cnn.train(X_train, y_train, n_epochs=epochs)
+        cnn.train(X_train, y_train, n_epochs=epochs, optim_algo=optimizer, criterion=criterion)
         accuracy, f1_score, precision, auc, recall = cnn.test(X_test, y_test)
 
         print("Accuracy: {}".format(accuracy))
