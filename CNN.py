@@ -4,7 +4,10 @@ from keras.models import Model
 
 from keras.layers.convolutional import Convolution2D, MaxPooling2D
 from keras.layers.core import Flatten, Activation
+
 from keras.optimizers import Adam, SGD
+
+from keras.layers.advanced_activations import ELU
 
 import sklearn.metrics as metrics
 import numpy as np
@@ -18,6 +21,12 @@ class CNN():
 
     def build_model(self, n_classes, max_words, w2v_size, vocab_size, use_embedding, filter_sizes, n_filters,
                     dense_layer_sizes, activation_function):
+
+        # From the paper http://arxiv.org/pdf/1511.07289v1.pdf
+        # Supposed to perform better but lets see about that
+        if activation_function == 'elu':
+            activation_function = ELU(alpha=1.0)
+
 
         if use_embedding:
             w2v_input = Input(shape=(max_words, ))

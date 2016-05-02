@@ -28,11 +28,12 @@ def main():
     model_name = 'model'
     w2v_size = 200
     activation = 'relu'
-    dense_sizes = [100]
+    dense_sizes = [100, 100]
     filter_sizes = [2, 3, 4, 5]
-    max_words = 100
+    max_words = 300
     word_vector_size = 200
     using_tacc = False
+    undersample = False
 
     for opt, arg in opts:
         if opt == '--window_size':
@@ -87,7 +88,24 @@ def main():
         X_train, y_train = X[train, :, :, :], y[train, :]
         X_test, y_test = X[test, :, :, :], y[test, :]
 
-        temp_model_name = model_name + '_fold_{}'.format(fold_idx + 1)
+        if undersample:
+            idx_undersample = np.where(y_train[:, 1] == 0)[0]
+            idx_postive = np.where(y_train[:, 1] == 1)[0]
+            random_negative_sample = np.random.choice(idx_undersample, idx_postive.shape[0])
+
+            X_train_postive = X_train[idx_postive, :, :, :]
+
+            X_train_negative = X_train[random_negative_sample, :, :, :]
+
+            y_train_postive = y_train[idx_postive, :]
+            y_train_negative = y_train[random_negative_sample, :]
+
+            X_train = np.vstack((X_train_postive, X_train_negative))
+            y_train = np.vstack((y_train_postive, y_train_negative))
+
+
+
+        temp_model_name = model_name + '_fold_{}.h5'.format(fold_idx + 1)
         cnn = CNN(n_classes=2, max_words=max_words, w2v_size=w2v_size, vocab_size=1000, use_embedding=False, filter_sizes=filter_sizes,
                   n_filters=n_feature_maps, dense_layer_sizes=dense_sizes.copy(), name=temp_model_name, activation_function=activation)
 
