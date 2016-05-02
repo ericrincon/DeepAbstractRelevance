@@ -14,7 +14,7 @@ def main():
         opts, args = getopt.getopt(sys.argv[1:], '', ['n_feature_maps=', 'epochs=',
                                                       'undersample=', 'n_feature_maps=', 'criterion=',
                                                       'optimizer=', 'max_words=', 'layers=',
-                                                      'hyperopt=', 'model_name='])
+                                                      'hyperopt=', 'model_name=', 'w2v_path='])
     except getopt.GetoptError as error:
         print(error)
         sys.exit(2)
