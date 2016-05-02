@@ -14,7 +14,7 @@ def main():
         opts, args = getopt.getopt(sys.argv[1:], '', ['n_feature_maps=', 'epochs=',
                                                       'undersample=', 'n_feature_maps=', 'criterion=',
                                                       'optimizer=', 'max_words=', 'layers=',
-                                                      'hyperopt=', 'model_name=', 'w2v_path='])
+                                                      'hyperopt=', 'model_name=', 'w2v_path=', 'tacc='])
     except getopt.GetoptError as error:
         print(error)
         sys.exit(2)
@@ -31,6 +31,7 @@ def main():
     filter_sizes = [2, 3, 4, 5]
     max_words = 100
     word_vector_size = 200
+    using_tacc = False
 
     for opt, arg in opts:
         if opt == '--window_size':
@@ -64,8 +65,13 @@ def main():
             w2v_path = arg
         elif opt == '--word_vector_size':
             word_vector_size = int(arg)
+        elif opt == '--tacc':
+            if int(arg) == 1:
+                using_tacc = True
         else:
             print("Option {} is not valid!".format(opt))
+    if using_tacc:
+        nltk.data.path.append('/work/03186/ericr/nltk_data/')
     print('Loading Word2Vec...')
     w2v = Word2Vec.load_word2vec_format(w2v_path, binary=True)
     print('Loaded Word2Vec...')
