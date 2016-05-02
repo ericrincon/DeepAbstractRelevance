@@ -86,7 +86,7 @@ def main():
         X_train, y_train = X[train, :, :, :], y[train, :]
         X_test, y_test = X[test, :, :, :], y[test, :]
 
-        cnn = CNN(n_classes=2, max_words=50, w2v_size=w2v_size, vocab_size=1000, use_embedding=False, filter_sizes=filter_sizes,
+        cnn = CNN(n_classes=2, max_words=max_words, w2v_size=w2v_size, vocab_size=1000, use_embedding=False, filter_sizes=filter_sizes,
                   n_filters=n_feature_maps, dense_layer_sizes=dense_sizes.copy(), name=model_name, activation_function=activation)
 
         cnn.train(X_train, y_train, n_epochs=epochs, optim_algo=optimizer, criterion=criterion)
