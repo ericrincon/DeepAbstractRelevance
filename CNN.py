@@ -76,17 +76,14 @@ class CNN():
 
     def test(self, x, y):
         truth = []
-#        if self.k_output == self.window_size:
-
         predictions = self.predict_classes(x)
-
 
         for i in range(y.shape[0]):
             if y[i, 1] == 1:
                 truth.append(1)
             else:
                 truth.append(0)
-        truth = y
+
         accuracy = metrics.accuracy_score(truth, predictions)
         f1_score = metrics.f1_score(truth, predictions)
         precision = metrics.precision_score(truth, predictions)
@@ -102,3 +99,6 @@ class CNN():
         predicted_classes = np.argmax(predictions, axis=1)
 
         return predicted_classes
+
+    def save(self):
+        self.model.save_weights(self.model_name)

@@ -9,6 +9,7 @@ from CNN import CNN
 from sklearn.cross_validation import KFold
 from gensim.models import Word2Vec
 
+
 def main():
     try:
         opts, args = getopt.getopt(sys.argv[1:], '', ['n_feature_maps=', 'epochs=', 'max_words',
@@ -86,8 +87,9 @@ def main():
         X_train, y_train = X[train, :, :, :], y[train, :]
         X_test, y_test = X[test, :, :, :], y[test, :]
 
+        temp_model_name = model_name + '_fold_{}'.format(fold_idx + 1)
         cnn = CNN(n_classes=2, max_words=max_words, w2v_size=w2v_size, vocab_size=1000, use_embedding=False, filter_sizes=filter_sizes,
-                  n_filters=n_feature_maps, dense_layer_sizes=dense_sizes.copy(), name=model_name, activation_function=activation)
+                  n_filters=n_feature_maps, dense_layer_sizes=dense_sizes.copy(), name=temp_model_name, activation_function=activation)
 
         cnn.train(X_train, y_train, n_epochs=epochs, optim_algo=optimizer, criterion=criterion)
         accuracy, f1_score, precision, auc, recall = cnn.test(X_test, y_test)
@@ -98,6 +100,7 @@ def main():
         print("AUC: {}".format(auc))
         print("Recall: {}".format(recall))
 
+        cnn.save()
 
 
 def get_all_files(path):
@@ -151,9 +154,15 @@ def get_data(max_words, word_vector_size, w2v):
     for i, (abstract, label) in enumerate(zip(abstracts_as_words, labels)):
         word_matrix = abstract_to_w2v(abstract, max_words, w2v, word_vector_size)
         X[i, 0, :, :] = word_matrix
+
+        label = label[0]
+        if label == -1:
+            label = 0
         y[i, label] = 1
 
     return X, y
+
+
 def abstract_to_w2v(abstract_as_words, max_words, w2v, word_vector_size):
     word_matrix = np.zeros((max_words, word_vector_size))
 
