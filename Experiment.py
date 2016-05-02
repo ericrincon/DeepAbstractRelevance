@@ -30,6 +30,7 @@ def main():
     dense_sizes = [100]
     filter_sizes = [2, 3, 4, 5]
     max_words = 100
+    word_vector_size = 200
 
     for opt, arg in opts:
         if opt == '--window_size':
@@ -59,6 +60,10 @@ def main():
             model_name = arg
         elif opt == 'max_words ':
             max_words = int(arg)
+        elif opt == '--w2v_path':
+            w2v_path = arg
+        elif opt == '--word_vector_size':
+            word_vector_size = int(arg)
         else:
             print("Option {} is not valid!".format(opt))
     print('Loading Word2Vec...')
@@ -66,7 +71,7 @@ def main():
     print('Loaded Word2Vec...')
 
     print('Loading data...')
-    X, y = get_data(50, 200, w2v)
+    X, y = get_data(max_words, word_vector_size, w2v)
     print('Loaded data...')
     n = X.shape[0]
     kf = KFold(n, random_state=1337, shuffle=True, n_folds=5)
