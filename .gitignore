@@ -18,3 +18,5 @@
 model_fold_1
 
 *.h5
+
+*.local

@@ -8,7 +8,7 @@ from keras.layers.core import Flatten, Activation, Dropout
 from keras.optimizers import Adam, SGD, Adagrad
 
 from keras.layers.advanced_activations import ELU
-from keras.callbacks import EarlyStopping
+from keras.callbacks import EarlyStopping, TensorBoard
 
 import sklearn.metrics as metrics
 import numpy as np
@@ -75,7 +75,7 @@ class CNN:
         return model
 
     def train(self, x, y, n_epochs, optim_algo='adam', criterion='categorical_crossentropy', save_model=True,
-              verbose=2):
+              verbose=2, plot=True, tensorBoard_path=''):
 
         if optim_algo == 'adam':
             optim_algo = Adam()
@@ -87,13 +87,17 @@ class CNN:
         self.model.compile(optimizer=optim_algo, loss=criterion)
 
         early_stopping = EarlyStopping(monitor='val_loss', patience=10, mode='auto')
+        tensorBoard = TensorBoard()
 
         # verbose: 0 for no logging to stdout, 1 for progress bar logging, 2 for one log line per epoch.
-        self.model.fit(x, y, nb_epoch=n_epochs, callbacks=[early_stopping], validation_split=0.2,
+        self.model.fit(x, y, nb_epoch=n_epochs, callbacks=[early_stopping, tensorBoard], validation_split=0.2,
                        verbose=verbose, batch_size=16)
 
         if save_model:
             self.model.save_weights(self.model_name + '.h5', overwrite=True)
+
+
+
 
     def test(self, x, y, print_output=False):
         truth = []
@@ -131,7 +135,7 @@ class CNN:
 class CICNN:
     def __init__(self, n_classes, max_words, w2v_size, vocab_size, filter_sizes, n_filters,
                  dense_layer_sizes, name, activation_function, dropout_p):
-        self.model = self.build_model(n_classes, max_words, w2v_size, vocab_size, use_embedding, filter_sizes,
+        self.model = self.build_model(n_classes, max_words, w2v_size, vocab_size, filter_sizes,
                                       n_filters, dense_layer_sizes, activation_function, dropout_p)
         self.model_name = name
 
@@ -190,7 +194,8 @@ class CICNN:
 
         return model
 
-    def train(self, x, y, n_epochs, optim_algo='adam', criterion='categorical_crossentropy', save_model=True,
+    def train(self, X_positive, X_negative, y_positive, y_negative, n_epochs, optim_algo='adam',
+              criterion='categorical_crossentropy', save_model=True,
               verbose=2):
 
         if optim_algo == 'adam':

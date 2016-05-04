@@ -31,7 +31,7 @@ def main():
     w2v_size = 200
     activation = 'elu'
     dense_sizes = [300]
-    filter_sizes = [3, 5, 7, 9]
+    filter_sizes = [3, 5, 7, 9, 11, 15, 20]
     max_words = 800
     word_vector_size = 200
     using_tacc = False
@@ -113,8 +113,13 @@ def run_on_all_data(X_list, y_list, model_name, max_words, w2v_size, n_feature_m
             X_test, y_test = X[test, :, :, :], y[test, :]
 
             if undersample:
-                idx_undersample = np.where(y_train[:, 1] == 1)[0]
-                idx_postive = np.where(y_train[:, 0] == 1)[0]
+                # Get all the targets that are not relevant i.e., y = 0
+                idx_undersample = np.where(y_train[:, 0] == 1)[0]
+
+                # Get all the targets that are relevant i.e., y = 1
+                idx_postive = np.where(y_train[:, 1] == 1)[0]
+
+                # Now sample from the no relevant targets
                 random_negative_sample = np.random.choice(idx_undersample, idx_postive.shape[0])
 
                 X_train_postive = X_train[idx_postive, :, :, :]
@@ -126,6 +131,10 @@ def run_on_all_data(X_list, y_list, model_name, max_words, w2v_size, n_feature_m
 
                 X_train = np.vstack((X_train_postive, X_train_negative))
                 y_train = np.vstack((y_train_postive, y_train_negative))
+
+
+                print("N y = 0: {}".format(random_negative_sample.shape[0]))
+                print("N y = 1: {}".format(idx_postive.shape[0]))
 
             _X = [X_train, X_test]
             _y = [y_train, y_test]
@@ -244,6 +253,7 @@ def get_data(max_words, word_vector_size, w2v):
         if abstract == 'MISSING':
             continue
         else:
+
             abstract_as_words = nltk.word_tokenize(abstract)
             abstracts_as_words.append(abstract_as_words)
             labels.append(labels_df.iloc[i])
@@ -257,7 +267,6 @@ def get_data(max_words, word_vector_size, w2v):
     for i, (abstract, label) in enumerate(zip(abstracts_as_words, labels)):
         word_matrix = abstract_to_w2v(abstract, max_words, w2v, word_vector_size)
         X[i, 0, :, :] = word_matrix
-
         label = label[0]
         if label == -1:
             label = 0
