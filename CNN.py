@@ -89,10 +89,9 @@ class CNN:
         self.model.compile(optimizer=optim_algo, loss=criterion)
 
         early_stopping = EarlyStopping(monitor='val_loss', patience=patience, mode='auto')
-        tensorBoard = TensorBoard(log_dir=tensorboard_path)
 
         # verbose: 0 for no logging to stdout, 1 for progress bar logging, 2 for one log line per epoch.
-        self.model.fit(x, y, nb_epoch=n_epochs, callbacks=[early_stopping, tensorBoard], validation_split=0.2,
+        self.model.fit(x, y, nb_epoch=n_epochs, callbacks=[early_stopping], validation_split=0.2,
                        verbose=verbose, batch_size=32, shuffle=True)
 
         if save_model:
@@ -209,10 +208,6 @@ class CICNN:
         callbacks = []
         early_stopping = EarlyStopping(monitor='val_loss', patience=patience, mode='auto')
         callbacks.append(early_stopping)
-
-        if use_tensorboard:
-            tensorBoard = TensorBoard()
-            callbacks.append(tensorBoard)
 
         # verbose: 0 for no logging to stdout, 1 for progress bar logging, 2 for one log line per epoch.
         # @TODO this is not correct! Fix it!!!!
@@ -341,12 +336,7 @@ class AbstractCNN:
         early_stopping = EarlyStopping(monitor='val_loss', patience=patience, mode='auto')
 
         callbacks.append(early_stopping)
-        if use_tensorboard:
-            from keras.callbacks import TensorBoard
-            
-            tensorBoard = TensorBoard()
-            callbacks.append(tensorBoard)
-
+   
         # verbose: 0 for no logging to stdout, 1 for progress bar logging, 2 for one log line per epoch.
         self.model.fit([X_abstract, X_titles, X_mesh], y, nb_epoch=n_epochs, callbacks=calbacks, validation_split=0.2,
                        verbose=verbose, batch_size=32, shuffle=True)
