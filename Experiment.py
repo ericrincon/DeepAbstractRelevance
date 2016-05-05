@@ -35,7 +35,7 @@ def main():
     activation = 'elu'
     dense_sizes = [400, 400]
     filter_sizes = [2, 3, 5, 7, 10]
-    max_words = 200
+    max_words = 220
     word_vector_size = 200
     using_tacc = False
     undersample = True
@@ -217,7 +217,7 @@ def run_model(X, y, model_name, fold_idx, max_words, w2v_size, n_feature_maps, d
         X_abstract_train, X_titles_train, X_mesh_train, X_abstract_test, X_titles_test, X_mesh_test = X
         y_train, y_test = y
 
-        cnn = AbstractCNN(n_classes=2,  abstract_max_words=200, title_max_words=12, mesh_max_words=20, w2v_size=w2v_size, vocab_size=1000, use_embedding=False,
+        cnn = AbstractCNN(n_classes=2,  abstract_max_words=max_words, title_max_words=14, mesh_max_words=40, w2v_size=w2v_size, vocab_size=1000, use_embedding=False,
                   filter_sizes=filter_sizes, n_filters=n_feature_maps, dense_layer_sizes=dense_sizes.copy(),
                   name=temp_model_name, activation_function=activation, dropout_p=p)
         cnn.train(X_abstract_train, X_titles_train, X_mesh_train, y_train, n_epochs=epochs, optim_algo=optimizer,
@@ -248,7 +248,7 @@ def get_all_files(path):
     return file_paths
 
 def get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=False,
-                        max_mesh_terms=20, max_words_title=12):
+                        max_mesh_terms=40, max_words_title=14):
     file_paths = get_all_files('Data')
     X_list, y_list = [], []
 
@@ -307,7 +307,7 @@ def get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=False
 
         for i, (abstract, label) in enumerate(zip(abstracts_as_words, labels)):
             word_matrix = text2w2v(abstract, max_words, w2v, word_vector_size)
-            print(word_matrix)
+
             if use_abstract_cnn:
                 mesh_term_matrix = text2w2v(abstract_mesh_terms[i], max_mesh_terms, w2v, word_vector_size)
                 title_matrix = text2w2v(titles[i], max_words_title, w2v, word_vector_size)
@@ -373,7 +373,6 @@ def get_data(max_words, word_vector_size, w2v):
         if abstract == 'MISSING':
             continue
         else:
-
             abstract_as_words = nltk.word_tokenize(abstract)
             abstracts_as_words.append(abstract_as_words)
             labels.append(labels_df.iloc[i])
