@@ -408,13 +408,9 @@ def text2w2v(words, max_words, w2v, word_vector_size, remove_stop_words=False):
         if i == max_words - 1:
             break
 
-      #  print("Word: {}".format(word))
-      #  print("Word vector: {}".format(w2v[word]))
         if remove_stop_words:
             if word in stop:
-                print(word)
                 continue
-
 
         if word in w2v:
             word_vector = w2v[word]
