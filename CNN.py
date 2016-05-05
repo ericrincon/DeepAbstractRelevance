@@ -336,9 +336,9 @@ class AbstractCNN:
         early_stopping = EarlyStopping(monitor='val_loss', patience=patience, mode='auto')
 
         callbacks.append(early_stopping)
-   
+
         # verbose: 0 for no logging to stdout, 1 for progress bar logging, 2 for one log line per epoch.
-        self.model.fit([X_abstract, X_titles, X_mesh], y, nb_epoch=n_epochs, callbacks=calbacks, validation_split=0.2,
+        self.model.fit([X_abstract, X_titles, X_mesh], y, nb_epoch=n_epochs, callbacks=callbacks, validation_split=0.2,
                        verbose=verbose, batch_size=32, shuffle=True)
 
         if save_model:
