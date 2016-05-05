@@ -8,7 +8,7 @@ from keras.layers.core import Flatten, Activation, Dropout
 from keras.optimizers import Adam, SGD, Adagrad
 
 from keras.layers.advanced_activations import ELU
-from keras.callbacks import EarlyStopping, TensorBoard
+from keras.callbacks import EarlyStopping
 
 from keras.regularizers import l2
 from keras.constraints import maxnorm
@@ -342,6 +342,8 @@ class AbstractCNN:
 
         callbacks.append(early_stopping)
         if use_tensorboard:
+            from keras.callbacks import TensorBoard
+            
             tensorBoard = TensorBoard()
             callbacks.append(tensorBoard)
 
