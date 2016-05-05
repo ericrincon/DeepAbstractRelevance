@@ -27,7 +27,7 @@ def get_data():
             title_str = title[i]
             label = abstract_labels[i]
 
-            text = "".join([abstract_str, " ", mesh_str, " " ,title_str])
+            text = "".join([abstract_str, " ", mesh_str, " ", title_str])
 
             X.append(text)
             y.append(label)
@@ -37,8 +37,10 @@ def get_data():
     return X_list, y_list
 
 def main():
+    print("Loading data...")
     X_list, y_list = get_data()
-
+    print("Loaded data...")
+    
     for X, y in zip(X_list, y_list):
         X = np.array(X)
         y = np.array(y)
@@ -51,7 +53,7 @@ def main():
             X_train, X_test = X[train], X[test]
             y_train, y_test = y[train], y[test]
 
-            count_vec = CountVectorizer()
+            count_vec = CountVectorizer(ngram_range=(1, 3), max_features=50000)
 
             X_train = count_vec.fit_transform(X_train)
             X_test = count_vec.transform(X_test)
