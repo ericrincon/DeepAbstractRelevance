@@ -10,6 +10,9 @@ from keras.optimizers import Adam, SGD, Adagrad
 from keras.layers.advanced_activations import ELU
 from keras.callbacks import EarlyStopping, TensorBoard
 
+from keras.regularizers import l2
+from keras.constraints import maxnorm
+
 import sklearn.metrics as metrics
 import numpy as np
 
@@ -74,7 +77,7 @@ class CNN:
         return model
 
     def train(self, x, y, n_epochs, optim_algo='adam', criterion='categorical_crossentropy', save_model=True,
-              verbose=2, plot=True, tensorBoard_path='', patience=20):
+              verbose=2, plot=True, tensorboard_path='./logs', patience=20):
 
         if optim_algo == 'adam':
             optim_algo = Adam()
@@ -86,17 +89,14 @@ class CNN:
         self.model.compile(optimizer=optim_algo, loss=criterion)
 
         early_stopping = EarlyStopping(monitor='val_loss', patience=patience, mode='auto')
-        tensorBoard = TensorBoard()
+        tensorBoard = TensorBoard(log_dir=tensorboard_path)
 
         # verbose: 0 for no logging to stdout, 1 for progress bar logging, 2 for one log line per epoch.
         self.model.fit(x, y, nb_epoch=n_epochs, callbacks=[early_stopping, tensorBoard], validation_split=0.2,
-                       verbose=verbose, batch_size=32)
+                       verbose=verbose, batch_size=32, shuffle=True)
 
         if save_model:
             self.model.save_weights(self.model_name + '.h5', overwrite=True)
-
-
-
 
     def test(self, x, y, print_output=False):
         truth = []
@@ -179,7 +179,7 @@ class CICNN:
             i = 1
 
             for dense_layer_size in dense_layer_sizes:
-                dense_layer = Dense(dense_layer_size)(dense_layer_sizes[i-1])
+                dense_layer = Dense(dense_layer_size, W_constraint=maxnorm(2))(dense_layer_sizes[i-1])
                 dense_activation_layer = Activation(activation_function)(dense_layer)
                 dropout_layer = Dropout(dropout_p)(dense_activation_layer)
                 dense_layers.append(dropout_layer)
@@ -335,7 +335,7 @@ class AbstractCNN:
 
         # verbose: 0 for no logging to stdout, 1 for progress bar logging, 2 for one log line per epoch.
         self.model.fit([X_abstract, X_titles, X_mesh], y, nb_epoch=n_epochs, callbacks=[early_stopping, tensorBoard], validation_split=0.2,
-                       verbose=verbose, batch_size=32)
+                       verbose=verbose, batch_size=68)
 
         if save_model:
             self.model.save_weights(self.model_name + '.h5', overwrite=True)

@@ -26,10 +26,10 @@ def main():
         sys.exit(2)
 
     w2v_path = '/Users/ericrincon/PycharmProjects/Deep-PICO/wikipedia-pubmed-and-PMC-w2v.bin'
-    n_feature_maps = 150
+    n_feature_maps = 50
     epochs = 50
     criterion = 'categorical_crossentropy'
-    optimizer = 'adagrad'
+    optimizer = 'adam'
     model_name = 'model'
     w2v_size = 200
     activation = 'elu'
@@ -157,19 +157,10 @@ def run(X_list, y_list, model_name, max_words, w2v_size, n_feature_maps, dense_s
                 random_negative_sample = np.random.choice(idx_undersample, idx_postive.shape[0])
 
                 if model_type == 'cnn':
-                    X_train_postive = X_train[idx_postive, :, :, :]
-
+                    X_train_positive = X_train[idx_postive, :, :, :]
                     X_train_negative = X_train[random_negative_sample, :, :, :]
 
-                    y_train_postive = y_train[idx_postive, :]
-                    y_train_negative = y_train[random_negative_sample, :]
-
-                    X_train = np.vstack((X_train_postive, X_train_negative))
-                    y_train = np.vstack((y_train_postive, y_train_negative))
-
-
-
-                    X_train = np.vstack((X_train_postive, X_train_negative))
+                    X_train = np.vstack((X_train_positive, X_train_negative))
 
                 elif model_type == 'acnn':
                     X_abstract_train_positive = X_abstract_train[idx_postive, :, :, :]
@@ -184,10 +175,9 @@ def run(X_list, y_list, model_name, max_words, w2v_size, n_feature_maps, dense_s
                     X_titles_train = np.vstack((X_titles_train_positive, X_titles_train_negative))
                     X_mesh_train = np.vstack((X_mesh_train_positive, X_mesh_train_negative))
 
-
-                y_train_postive = y_train[idx_postive, :]
+                y_train_positive = y_train[idx_postive, :]
                 y_train_negative = y_train[random_negative_sample, :]
-                y_train = np.vstack((y_train_postive, y_train_negative))
+                y_train = np.vstack((y_train_positive, y_train_negative))
 
                 print("N y = 0: {}".format(random_negative_sample.shape[0]))
                 print("N y = 1: {}".format(idx_postive.shape[0]))
@@ -213,7 +203,8 @@ def run_model(X, y, model_name, fold_idx, max_words, w2v_size, n_feature_maps, d
         X_train, X_test = X
         y_train, y_test = y
         print("X_train shape: {}".format(X_train.shape))
-
+        print(X_train)
+        print(y_train)
         cnn = CNN(n_classes=2, max_words=max_words, w2v_size=w2v_size, vocab_size=1000, use_embedding=False,
                   filter_sizes=filter_sizes, n_filters=n_feature_maps, dense_layer_sizes=dense_sizes.copy(),
                   name=temp_model_name, activation_function=activation, dropout_p=p)
@@ -316,7 +307,7 @@ def get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=False
 
         for i, (abstract, label) in enumerate(zip(abstracts_as_words, labels)):
             word_matrix = text2w2v(abstract, max_words, w2v, word_vector_size)
-
+            print(word_matrix)
             if use_abstract_cnn:
                 mesh_term_matrix = text2w2v(abstract_mesh_terms[i], max_mesh_terms, w2v, word_vector_size)
                 title_matrix = text2w2v(titles[i], max_words_title, w2v, word_vector_size)
@@ -414,20 +405,21 @@ def text2w2v(words, max_words, w2v, word_vector_size, remove_stop_words=False):
     word_matrix = np.zeros((max_words, word_vector_size))
 
     for word in words:
+        if i == max_words - 1:
+            break
+
+      #  print("Word: {}".format(word))
+      #  print("Word vector: {}".format(w2v[word]))
         if remove_stop_words:
             if word in stop:
                 print(word)
                 continue
 
-        if i == max_words - 1:
-            break
-        try:
+
+        if word in w2v:
             word_vector = w2v[word]
-            word_matrix[i, word_vector] = word_vector
-            print(word_vector)
+            word_matrix[i, :] = word_vector
             i += 1
-        except:
-            continue
 
     return word_matrix[np.newaxis, :, :]
 
