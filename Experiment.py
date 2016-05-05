@@ -156,16 +156,38 @@ def run(X_list, y_list, model_name, max_words, w2v_size, n_feature_maps, dense_s
                 # Now sample from the no relevant targets
                 random_negative_sample = np.random.choice(idx_undersample, idx_postive.shape[0])
 
-                X_train_postive = X_train[idx_postive, :, :, :]
+                if model_type == 'cnn':
+                    X_train_postive = X_train[idx_postive, :, :, :]
 
-                X_train_negative = X_train[random_negative_sample, :, :, :]
+                    X_train_negative = X_train[random_negative_sample, :, :, :]
+
+                    y_train_postive = y_train[idx_postive, :]
+                    y_train_negative = y_train[random_negative_sample, :]
+
+                    X_train = np.vstack((X_train_postive, X_train_negative))
+                    y_train = np.vstack((y_train_postive, y_train_negative))
+
+
+
+                    X_train = np.vstack((X_train_postive, X_train_negative))
+
+                elif model_type == 'acnn':
+                    X_abstract_train_positive = X_abstract_train[idx_postive, :, :, :]
+                    X_titles_train_positive = X_titles_train[idx_postive, :, :, :]
+                    X_mesh_train_positive = X_mesh_train[idx_postive, :, :, :]
+
+                    X_abstract_train_negative = X_abstract_train[random_negative_sample, :, :, :]
+                    X_titles_train_negative = X_titles_train[random_negative_sample, :, :, :]
+                    X_mesh_train_negative = X_mesh_train[random_negative_sample, :, :, :]
+
+                    X_abstract_train = np.vstack((X_abstract_train_positive, X_abstract_train_negative))
+                    X_titles_train = np.vstack((X_titles_train_positive, X_titles_train_negative))
+                    X_mesh_train = np.vstack((X_mesh_train_positive, X_mesh_train_negative))
+
 
                 y_train_postive = y_train[idx_postive, :]
                 y_train_negative = y_train[random_negative_sample, :]
-
-                X_train = np.vstack((X_train_postive, X_train_negative))
                 y_train = np.vstack((y_train_postive, y_train_negative))
-
 
                 print("N y = 0: {}".format(random_negative_sample.shape[0]))
                 print("N y = 1: {}".format(idx_postive.shape[0]))
