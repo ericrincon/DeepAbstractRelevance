@@ -38,7 +38,7 @@ def main():
     max_words = 200
     word_vector_size = 200
     using_tacc = False
-    undersample = False
+    undersample = True
     use_all_date = False
     patience = 20
     p = .5
@@ -209,7 +209,7 @@ def run_model(X, y, model_name, fold_idx, max_words, w2v_size, n_feature_maps, d
                   name=temp_model_name, activation_function=activation, dropout_p=p)
         cnn.train(X_abstract_train, X_titles_train, X_mesh_train, y_train, n_epochs=epochs, optim_algo=optimizer,
                   criterion=criterion, verbose=1, patience=patience)
-        accuracy, f1_score, precision, auc, recall = cnn.test(X_abstract_train, X_titles_train, X_mesh_train, y_test,
+        accuracy, f1_score, precision, auc, recall = cnn.test(X_abstract_test, X_titles_test, X_mesh_test, y_test,
                                                               print_output=True)
 
 
