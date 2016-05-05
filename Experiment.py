@@ -16,7 +16,7 @@ from nltk.corpus import stopwords
 
 def main():
     try:
-        opts, args = getopt.getopt(sys.argv[1:], '', ['n_feature_maps=', 'epochs=', 'max_words=', 'dropout_p='
+        opts, args = getopt.getopt(sys.argv[1:], '', ['n_feature_maps=', 'epochs=', 'max_words=', 'dropout_p=',
                                                       'undersample=', 'n_feature_maps=', 'criterion=',
                                                       'optimizer=', 'max_words=', 'layers=',
                                                       'hyperopt=', 'model_name=', 'w2v_path=', 'tacc=', 'use_all_date=',
