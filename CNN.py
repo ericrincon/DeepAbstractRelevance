@@ -249,15 +249,17 @@ class CICNN:
 
 
 class AbstractCNN:
-    def __init__(self, n_classes, max_words, w2v_size, vocab_size, use_embedding, filter_sizes, n_filters,
-                 dense_layer_sizes, name, activation_function, dropout_p):
-        self.model = self.build_model(n_classes, max_words, w2v_size, vocab_size, use_embedding, filter_sizes,
-                                      n_filters, dense_layer_sizes, activation_function, dropout_p)
+    def __init__(self, n_classes,  abstract_max_words, title_max_words, mesh_max_words, w2v_size, vocab_size,
+                 use_embedding, filter_sizes, n_filters, dense_layer_sizes, name, activation_function, dropout_p):
+        self.model = self.build_model(n_classes,  abstract_max_words, title_max_words, mesh_max_words, w2v_size,
+                                      vocab_size, use_embedding, filter_sizes, n_filters, dense_layer_sizes,
+                                      activation_function, dropout_p)
         self.model_name = name
+
     def build_conv_node(self, n_feature_maps, max_words, w2v_size, activation_function, filter_sizes, vocab_size,
-                        use_embedding):
+                        use_embedding, name):
         if use_embedding:
-            w2v_input = Input(shape=(max_words, ))
+            w2v_input = Input(shape=(max_words, ), name=name)
             conv_input = Embedding(output_dim=w2v_size, input_dim=vocab_size, input_length=max_words)(w2v_input)
         else:
             w2v_input = Input(shape=(1, max_words, w2v_size))
@@ -277,18 +279,20 @@ class AbstractCNN:
         merge_layer = merge(conv_layers, mode='concat')
 
         return merge_layer, w2v_input
-    def build_model(self, n_classes, max_words, w2v_size, vocab_size, use_embedding, filter_sizes, n_feature_maps,
-                    dense_layer_sizes, activation_function, dropout_p):
+    def build_model(self, n_classes, abstract_max_words, title_max_words, mesh_max_words, w2v_size, vocab_size,
+                    use_embedding, filter_sizes, n_feature_maps, dense_layer_sizes, activation_function, dropout_p):
 
         # From the paper http://arxiv.org/pdf/1511.07289v1.pdf
         # Supposed to perform better but lets see about that
         if activation_function == 'elu':
             activation_function = ELU(alpha=1.0)
 
-        abstract_node, abstract_input = self.build_conv_node(n_feature_maps, max_words, w2v_size, activation_function, filter_sizes,
-                                             vocab_size, use_embedding)
-        title_node, title_input = self.build_conv_node(n_feature_maps, 20, w2v_size, activation_function, filter_sizes, vocab_size, use_embedding)
-        mesh_node, mesh_input = self.build_conv_node(n_feature_maps, 10, w2v_size, activation_function, filter_sizes, vocab_size, use_embedding)
+        abstract_node, abstract_input = self.build_conv_node(n_feature_maps, abstract_max_words, w2v_size, activation_function, filter_sizes,
+                                             vocab_size, use_embedding, 'abstract')
+        title_node, title_input = self.build_conv_node(n_feature_maps, title_max_words, w2v_size, activation_function, filter_sizes,
+                                                       vocab_size, use_embedding, 'title')
+        mesh_node, mesh_input = self.build_conv_node(n_feature_maps, mesh_max_words, w2v_size, activation_function, filter_sizes,
+                                                     vocab_size, use_embedding, 'mesh_terms')
 
         merge_layer = merge([abstract_node, title_node, mesh_node], mode='concat')
 

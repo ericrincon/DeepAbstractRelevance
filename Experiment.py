@@ -109,7 +109,10 @@ def main():
         X_list.append(X)
         y_list.append(y)
     else:
-        X_list, y_list = get_data_separately(max_words, word_vector_size, w2v)
+        use_acnn = False
+        if model_type == 'acnn':
+            use_acnn = True
+        X_list, y_list = get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=use_acnn)
     print('Loaded data...')
 
     run(X_list, y_list, model_name, max_words, w2v_size, n_feature_maps, dense_sizes, optimizer, criterion,
@@ -120,7 +123,11 @@ def run(X_list, y_list, model_name, max_words, w2v_size, n_feature_maps, dense_s
     for X, y in zip(X_list, y_list):
         if model_type == 'acnn':
             X_abstract, X_titles, X_mesh = X
-        n = X.shape[0]
+
+        if model_type == 'cnn':
+            n = X.shape[0]
+        elif model_type == 'acnn':
+            n = X_abstract.shape[0]
         kf = KFold(n, random_state=1337, shuffle=True, n_folds=5)
 
         for fold_idx, (train, test) in enumerate(kf):
@@ -136,7 +143,7 @@ def run(X_list, y_list, model_name, max_words, w2v_size, n_feature_maps, dense_s
                 X_abstract_test = X_abstract[test, :, :, :]
                 X_titles_test = X_titles[test, :, :, :]
                 X_mesh_test = X_mesh[test, :, :, :]
-                y_train = y[test, :]
+                y_test = y[test, :]
 
 
             if undersample:
@@ -178,12 +185,12 @@ def run_model(X, y, model_name, fold_idx, max_words, w2v_size, n_feature_maps, d
               filter_sizes, activation, p, patience, model_type):
 
 
-    print("X_train shape: {}".format(X_train.shape))
     temp_model_name = model_name + '_fold_{}.h5'.format(fold_idx + 1)
 
     if model_type == 'cnn':
         X_train, X_test = X
         y_train, y_test = y
+        print("X_train shape: {}".format(X_train.shape))
 
         cnn = CNN(n_classes=2, max_words=max_words, w2v_size=w2v_size, vocab_size=1000, use_embedding=False,
                   filter_sizes=filter_sizes, n_filters=n_feature_maps, dense_layer_sizes=dense_sizes.copy(),
@@ -197,7 +204,7 @@ def run_model(X, y, model_name, fold_idx, max_words, w2v_size, n_feature_maps, d
         X_abstract_train, X_titles_train, X_mesh_train, X_abstract_test, X_titles_test, X_mesh_test = X
         y_train, y_test = y
 
-        cnn = AbstractCNN(n_classes=2, max_words=max_words, w2v_size=w2v_size, vocab_size=1000, use_embedding=False,
+        cnn = AbstractCNN(n_classes=2,  abstract_max_words=200, title_max_words=12, mesh_max_words=20, w2v_size=w2v_size, vocab_size=1000, use_embedding=False,
                   filter_sizes=filter_sizes, n_filters=n_feature_maps, dense_layer_sizes=dense_sizes.copy(),
                   name=temp_model_name, activation_function=activation, dropout_p=p)
         cnn.train(X_abstract_train, X_titles_train, X_mesh_train, y_train, n_epochs=epochs, optim_algo=optimizer,
@@ -231,7 +238,6 @@ def get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=False
                         max_mesh_terms=20, max_words_title=12):
     file_paths = get_all_files('Data')
     X_list, y_list = [], []
-    X_mesh_list, X_title_list = [], []
 
     total_words = 0.0
     total_words_title = 0.0
@@ -258,14 +264,14 @@ def get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=False
                 continue
             else:
                 if use_abstract_cnn:
-                    mesh_term = mesh_terms.iloc[i]
-                    abstract_title = title.iloc[i]
-
+                    mesh_term = mesh_terms[i]
+                    abstract_title = title[i]
                     preprocessed_mesh_terms = preprocess(mesh_term, tokenize=True)
                     preprocessed_title = preprocess(abstract_title, tokenize=True)
 
+
                     total_mesh_terms += len(preprocessed_mesh_terms)
-                    total_mesh_terms += len(preprocessed_title)
+                    total_words_title += len(preprocessed_title)
 
                     abstract_mesh_terms.append(preprocessed_mesh_terms)
                     titles.append(preprocessed_title)
@@ -282,7 +288,7 @@ def get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=False
 
         if use_abstract_cnn:
             X_mesh = np.empty((len(abstract_mesh_terms), 1, max_mesh_terms, word_vector_size))
-            X_title = np.empty((len(titles), 1, max_mesh_terms, word_vector_size))
+            X_title = np.empty((len(titles), 1, max_words_title, word_vector_size))
 
         y = np.zeros((len(labels), 2))
 
@@ -301,11 +307,11 @@ def get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=False
             if label == -1:
                 label = 0
             y[i, label] = 1
-
-        X_list.append(X)
+        if use_abstract_cnn:
+            X_list.append([X, X_title, X_mesh])
+        else:
+            X_list.append(X)
         y_list.append(y)
-        X_mesh_list.append(X_mesh)
-        X_title_list.append(X_title)
     average_word_per_abstract = float(total_words)/float(n_abstracts)
     average_words_per_title = float(total_words_title)/float(n_abstracts)
     average_words_per_mesh = float(total_mesh_terms)/float(n_abstracts)
@@ -314,10 +320,7 @@ def get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=False
     print('Average words per title: {}'.format(average_words_per_title))
     print('Average words per mesh terms: {}'.format(average_words_per_mesh))
 
-    if use_abstract_cnn:
-        return X_list, X_mesh_list, X_title_list, y_list
-    else:
-        return X_list, y_list
+    return X_list, y_list
 
 
 def extract_abstract_and_labels(data_frame):
@@ -329,8 +332,8 @@ def extract_abstract_and_labels(data_frame):
 
 def extract_mesh_and_title(data_frame):
 
-    mesh_terms = data_frame.iloc[:, ]
-    titles = data_frame.iloc[:, 5]
+    mesh_terms = data_frame.iloc[:, 5]
+    titles = data_frame.iloc[:, 1]
 
     return mesh_terms, titles
 
