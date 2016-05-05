@@ -337,11 +337,9 @@ class AbstractCNN:
             self.model.save_weights(self.model_name + '.h5', overwrite=True)
 
 
-
-
-    def test(self, x, y, print_output=False):
+    def test(self, X_abstract, X_titles, X_mesh, y,print_output=False):
         truth = []
-        predictions = self.predict_classes(x)
+        predictions = self.predict_classes([X_abstract, X_titles, X_mesh])
 
         for i in range(y.shape[0]):
             if y[i, 1] == 1:

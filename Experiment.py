@@ -20,7 +20,7 @@ def main():
                                                       'undersample=', 'n_feature_maps=', 'criterion=',
                                                       'optimizer=', 'max_words=', 'layers=',
                                                       'hyperopt=', 'model_name=', 'w2v_path=', 'tacc=', 'use_all_date=',
-                                                      'patience=', 'filter_sizes='])
+                                                      'patience=', 'filter_sizes=', 'model_type='])
     except getopt.GetoptError as error:
         print(error)
         sys.exit(2)
@@ -42,6 +42,7 @@ def main():
     use_all_date = False
     patience = 20
     p = .5
+    model_type = 'cnn'
 
     for opt, arg in opts:
         if opt == '--window_size':
@@ -89,6 +90,8 @@ def main():
         elif opt == '--undersample':
             if int(arg) == 0:
                 undersample = False
+        elif opt == '--model_type':
+            model_type = arg
         else:
             print("Option {} is not valid!".format(opt))
     if using_tacc:
@@ -110,17 +113,31 @@ def main():
     print('Loaded data...')
 
     run(X_list, y_list, model_name, max_words, w2v_size, n_feature_maps, dense_sizes, optimizer, criterion,
-                    epochs, filter_sizes, activation, undersample, p, patience)
+                    epochs, filter_sizes, activation, undersample, p, patience, model_type)
 
 def run(X_list, y_list, model_name, max_words, w2v_size, n_feature_maps, dense_sizes, optimizer, criterion, epochs,
-                  filter_sizes, activation, undersample, p, patience):
+                  filter_sizes, activation, undersample, p, patience, model_type):
     for X, y in zip(X_list, y_list):
+        if model_type == 'acnn':
+            X_abstract, X_titles, X_mesh = X
         n = X.shape[0]
         kf = KFold(n, random_state=1337, shuffle=True, n_folds=5)
 
         for fold_idx, (train, test) in enumerate(kf):
-            X_train, y_train = X[train, :, :, :], y[train, :]
-            X_test, y_test = X[test, :, :, :], y[test, :]
+            if model_type == 'cnn':
+                X_train, y_train = X[train, :, :, :], y[train, :]
+                X_test, y_test = X[test, :, :, :], y[test, :]
+            elif model_type == 'acnn':
+                X_abstract_train = X_abstract[train, :, :, :]
+                X_titles_train = X_titles[train, :, :, :]
+                X_mesh_train = X_mesh[train, :, :, :]
+                y_train = y[train, :]
+
+                X_abstract_test = X_abstract[test, :, :, :]
+                X_titles_test = X_titles[test, :, :, :]
+                X_mesh_test = X_mesh[test, :, :, :]
+                y_train = y[test, :]
+
 
             if undersample:
                 # Get all the targets that are not relevant i.e., y = 0
@@ -145,34 +162,49 @@ def run(X_list, y_list, model_name, max_words, w2v_size, n_feature_maps, dense_s
 
                 print("N y = 0: {}".format(random_negative_sample.shape[0]))
                 print("N y = 1: {}".format(idx_postive.shape[0]))
+            if model_type == 'cnn':
+                _X = [X_train, X_test]
+                _y = [y_train, y_test]
+            elif model_type == 'acnn':
+                _X = [X_abstract_train, X_titles_train, X_mesh_train, X_abstract_test, X_titles_test, X_mesh_test]
+                _y = [y_train, y_test]
 
-            _X = [X_train, X_test]
-            _y = [y_train, y_test]
 
             run_model(_X, _y, model_name, fold_idx, max_words, w2v_size, n_feature_maps, dense_sizes, optimizer, criterion, epochs,
-                      filter_sizes, activation, p, patience)
+                      filter_sizes, activation, p, patience, model_type)
 
 
 def run_model(X, y, model_name, fold_idx, max_words, w2v_size, n_feature_maps, dense_sizes, optimizer, criterion, epochs,
               filter_sizes, activation, p, patience, model_type):
-    X_train, X_test = X
-    y_train, y_test = y
+
+
     print("X_train shape: {}".format(X_train.shape))
     temp_model_name = model_name + '_fold_{}.h5'.format(fold_idx + 1)
 
     if model_type == 'cnn':
+        X_train, X_test = X
+        y_train, y_test = y
+
         cnn = CNN(n_classes=2, max_words=max_words, w2v_size=w2v_size, vocab_size=1000, use_embedding=False,
                   filter_sizes=filter_sizes, n_filters=n_feature_maps, dense_layer_sizes=dense_sizes.copy(),
                   name=temp_model_name, activation_function=activation, dropout_p=p)
 
         cnn.train(X_train, y_train, n_epochs=epochs, optim_algo=optimizer, criterion=criterion, verbose=1,
                   patience=patience)
+        accuracy, f1_score, precision, auc, recall = cnn.test(X_test, y_test, print_output=True)
+
     elif model_type == 'acnn':
+        X_abstract_train, X_titles_train, X_mesh_train, X_abstract_test, X_titles_test, X_mesh_test = X
+        y_train, y_test = y
+
         cnn = AbstractCNN(n_classes=2, max_words=max_words, w2v_size=w2v_size, vocab_size=1000, use_embedding=False,
                   filter_sizes=filter_sizes, n_filters=n_feature_maps, dense_layer_sizes=dense_sizes.copy(),
                   name=temp_model_name, activation_function=activation, dropout_p=p)
-        cnn.train()
-    accuracy, f1_score, precision, auc, recall = cnn.test(X_test, y_test, print_output=True)
+        cnn.train(X_abstract_train, X_titles_train, X_mesh_train, y_train, n_epochs=epochs, optim_algo=optimizer,
+                  criterion=criterion, verbose=1, patience=patience)
+        accuracy, f1_score, precision, auc, recall = cnn.test(X_abstract_train, X_titles_train, X_mesh_train, y_test,
+                                                              print_output=True)
+
 
     print("Accuracy: {}".format(accuracy))
     print("F1: {}".format(f1_score))
