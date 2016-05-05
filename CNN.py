@@ -195,7 +195,7 @@ class CICNN:
 
     def train(self, X_positive, X_negative, y_positive, y_negative, n_epochs, optim_algo='adam',
               criterion='categorical_crossentropy', save_model=True,
-              verbose=2):
+              verbose=2, use_tensorboard=False):
 
         if optim_algo == 'adam':
             optim_algo = Adam()
@@ -206,7 +206,13 @@ class CICNN:
 
         self.model.compile(optimizer=optim_algo, loss=criterion)
 
-        early_stopping = EarlyStopping(monitor='val_loss', patience=10, mode='auto')
+        callbacks = []
+        early_stopping = EarlyStopping(monitor='val_loss', patience=patience, mode='auto')
+        callbacks.append(early_stopping)
+
+        if use_tensorboard:
+            tensorBoard = TensorBoard()
+            callbacks.append(tensorBoard)
 
         # verbose: 0 for no logging to stdout, 1 for progress bar logging, 2 for one log line per epoch.
         # @TODO this is not correct! Fix it!!!!
@@ -319,7 +325,7 @@ class AbstractCNN:
         return model
 
     def train(self, X_abstract, X_titles, X_mesh, y, n_epochs, optim_algo='adam', criterion='categorical_crossentropy',
-              save_model=True, verbose=2, plot=True, tensorBoard_path='', patience=20):
+              save_model=True, verbose=2, plot=True, tensorBoard_path='', patience=20, use_tensorboard=False):
 
         if optim_algo == 'adam':
             optim_algo = Adam()
@@ -330,11 +336,17 @@ class AbstractCNN:
 
         self.model.compile(optimizer=optim_algo, loss=criterion)
 
+        callbacks = []
+
         early_stopping = EarlyStopping(monitor='val_loss', patience=patience, mode='auto')
-        tensorBoard = TensorBoard()
+
+        callbacks.append(early_stopping)
+        if use_tensorboard:
+            tensorBoard = TensorBoard()
+            callbacks.append(tensorBoard)
 
         # verbose: 0 for no logging to stdout, 1 for progress bar logging, 2 for one log line per epoch.
-        self.model.fit([X_abstract, X_titles, X_mesh], y, nb_epoch=n_epochs, callbacks=[early_stopping, tensorBoard], validation_split=0.2,
+        self.model.fit([X_abstract, X_titles, X_mesh], y, nb_epoch=n_epochs, callbacks=calbacks, validation_split=0.2,
                        verbose=verbose, batch_size=32, shuffle=True)
 
         if save_model:

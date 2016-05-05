@@ -26,6 +26,8 @@ def main():
         sys.exit(2)
 
     w2v_path = '/Users/ericrincon/PycharmProjects/Deep-PICO/wikipedia-pubmed-and-PMC-w2v.bin'
+
+
     n_feature_maps = 50
     epochs = 50
     criterion = 'categorical_crossentropy'

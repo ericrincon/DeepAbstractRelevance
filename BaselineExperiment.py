@@ -40,7 +40,7 @@ def main():
     print("Loading data...")
     X_list, y_list = get_data()
     print("Loaded data...")
-    
+
     for X, y in zip(X_list, y_list):
         X = np.array(X)
         y = np.array(y)
