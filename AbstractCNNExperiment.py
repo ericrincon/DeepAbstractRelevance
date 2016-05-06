@@ -22,9 +22,6 @@ def main():
         sys.exit(2)
 
     w2v_path = '/Users/ericrincon/PycharmProjects/Deep-PICO/wikipedia-pubmed-and-PMC-w2v.bin'
-
-
-    n_feature_maps = 50
     epochs = 50
     criterion = 'categorical_crossentropy'
     optimizer = 'adam'
@@ -32,15 +29,18 @@ def main():
     w2v_size = 200
     activation = 'relu'
     dense_sizes = [400, 400]
-    filter_sizes = [2, 3, 5, 7, 10, 13, 15, 17]
-    max_words = 220
+    max_words = {'text': 220, 'mesh': 40, 'title': 14}
+
+    filter_sizes = {'text': [2, 3, 5, 7, 9, 12, 13, 17],
+                    'mesh': [2, 3, 5],
+                    'title': [2, 3, 5, 7, 9]}
+    n_feature_maps = {'text': 100, 'mesh': 50, 'title': 50}
     word_vector_size = 200
     using_tacc = False
     undersample = True
     use_all_date = False
     patience = 20
     p = .7
-    model_type = 'cnn'
 
     for opt, arg in opts:
         if opt == '--window_size':
@@ -88,8 +88,6 @@ def main():
         elif opt == '--undersample':
             if int(arg) == 0:
                 undersample = False
-        elif opt == '--model_type':
-            model_type = arg
         else:
             print("Option {} is not valid!".format(opt))
 
@@ -109,42 +107,25 @@ def main():
         X_list.append(X)
         y_list.append(y)
     else:
-        use_acnn = False
+        X_list, y_list = DataLoader.get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=True)
 
-        if model_type == 'acnn':
-            use_acnn = True
-        X_list, y_list = DataLoader.get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=use_acnn)
     print('Loaded data...')
 
-    run(X_list, y_list, model_name, max_words, w2v_size, n_feature_maps, dense_sizes, optimizer, criterion,
-                    epochs, filter_sizes, activation, undersample, p, patience, model_type)
-
-def run(X_list, y_list, model_name, max_words, w2v_size, n_feature_maps, dense_sizes, optimizer, criterion, epochs,
-                  filter_sizes, activation, undersample, p, patience, model_type):
     for X, y in zip(X_list, y_list):
-        if model_type == 'acnn':
-            X_abstract, X_titles, X_mesh = X
-
-        if model_type == 'cnn':
-            n = X.shape[0]
-        elif model_type == 'acnn':
-            n = X_abstract.shape[0]
+        X_abstract, X_titles, X_mesh = X
+        n = X_abstract.shape[0]
         kf = KFold(n, random_state=1337, shuffle=True, n_folds=5)
 
         for fold_idx, (train, test) in enumerate(kf):
-            if model_type == 'cnn':
-                X_train, y_train = X[train, :, :, :], y[train, :]
-                X_test, y_test = X[test, :, :, :], y[test, :]
-            elif model_type == 'acnn':
-                X_abstract_train = X_abstract[train, :, :, :]
-                X_titles_train = X_titles[train, :, :, :]
-                X_mesh_train = X_mesh[train, :, :, :]
-                y_train = y[train, :]
+            X_abstract_train = X_abstract[train, :, :, :]
+            X_titles_train = X_titles[train, :, :, :]
+            X_mesh_train = X_mesh[train, :, :, :]
+            y_train = y[train, :]
 
-                X_abstract_test = X_abstract[test, :, :, :]
-                X_titles_test = X_titles[test, :, :, :]
-                X_mesh_test = X_mesh[test, :, :, :]
-                y_test = y[test, :]
+            X_abstract_test = X_abstract[test, :, :, :]
+            X_titles_test = X_titles[test, :, :, :]
+            X_mesh_test = X_mesh[test, :, :, :]
+            y_test = y[test, :]
 
             if undersample:
                 # Get all the targets that are not relevant i.e., y = 0
@@ -175,15 +156,7 @@ def run(X_list, y_list, model_name, max_words, w2v_size, n_feature_maps, dense_s
                 print("N y = 0: {}".format(random_negative_sample.shape[0]))
                 print("N y = 1: {}".format(idx_postive.shape[0]))
 
-            _X = [X_abstract_train, X_titles_train, X_mesh_train, X_abstract_test, X_titles_test, X_mesh_test]
-            _y = [y_train, y_test]
-
-
             temp_model_name = model_name + '_fold_{}.h5'.format(fold_idx + 1)
-
-
-            X_abstract_train, X_titles_train, X_mesh_train, X_abstract_test, X_titles_test, X_mesh_test = X
-            y_train, y_test = y
 
             cnn = AbstractCNN(n_classes=2,  max_words=max_words, w2v_size=w2v_size, vocab_size=1000, use_embedding=False,
                               filter_sizes=filter_sizes, n_feature_maps=n_feature_maps, dense_layer_sizes=dense_sizes.copy(),
@@ -193,7 +166,6 @@ def run(X_list, y_list, model_name, max_words, w2v_size, n_feature_maps, dense_s
             accuracy, f1_score, precision, auc, recall = cnn.test(X_abstract_test, X_titles_test, X_mesh_test, y_test,
                                                                   print_output=True)
 
-
             print("Accuracy: {}".format(accuracy))
             print("F1: {}".format(f1_score))
             print("Precision: {}".format(precision))
@@ -201,6 +173,5 @@ def run(X_list, y_list, model_name, max_words, w2v_size, n_feature_maps, dense_s
             print("Recall: {}".format(recall))
 
             cnn.save()
-
 if __name__ == '__main__':
     main()

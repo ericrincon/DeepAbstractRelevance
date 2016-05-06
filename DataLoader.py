@@ -20,8 +20,7 @@ def get_all_files(path):
     return file_paths
 
 
-def get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=False,
-                        max_mesh_terms=40, max_words_title=14):
+def get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=False):
     file_paths = get_all_files('Data')
     X_list, y_list = [], []
 
@@ -69,20 +68,21 @@ def get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=False
                 abstracts_as_words.append(preprocessed_abstract)
                 labels.append(abstract_labels.iloc[i])
 
-        X = np.empty((len(abstracts_as_words), 1, max_words, word_vector_size))
+        X = np.empty((len(abstracts_as_words), 1, max_words['text'], word_vector_size))
 
         if use_abstract_cnn:
-            X_mesh = np.empty((len(abstract_mesh_terms), 1, max_mesh_terms, word_vector_size))
-            X_title = np.empty((len(titles), 1, max_words_title, word_vector_size))
+            X_mesh = np.empty((len(abstract_mesh_terms), 1, max_words['mesh'], word_vector_size))
+            X_title = np.empty((len(titles), 1, max_words['title'], word_vector_size))
 
         y = np.zeros((len(labels), 2))
 
         for i, (abstract, label) in enumerate(zip(abstracts_as_words, labels)):
-            word_matrix = text2w2v(abstract, max_words, w2v, word_vector_size)
+
+            word_matrix = text2w2v(abstract, max_words['text'], w2v, word_vector_size)
 
             if use_abstract_cnn:
-                mesh_term_matrix = text2w2v(abstract_mesh_terms[i], max_mesh_terms, w2v, word_vector_size)
-                title_matrix = text2w2v(titles[i], max_words_title, w2v, word_vector_size)
+                mesh_term_matrix = text2w2v(abstract_mesh_terms[i], max_words['mesh'], w2v, word_vector_size)
+                title_matrix = text2w2v(titles[i], max_words['title'], w2v, word_vector_size)
 
                 X_mesh[i, 0, :, :] = mesh_term_matrix
                 X_title[i, 0, :, :] = title_matrix

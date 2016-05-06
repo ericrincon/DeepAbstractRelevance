@@ -24,7 +24,6 @@ def main():
 
     w2v_path = '/Users/ericrincon/PycharmProjects/Deep-PICO/wikipedia-pubmed-and-PMC-w2v.bin'
 
-
     n_feature_maps = 50
     epochs = 50
     criterion = 'categorical_crossentropy'
@@ -171,7 +170,7 @@ def run(X_list, y_list, model_name, max_words, w2v_size, n_feature_maps, dense_s
             print("AUC: {}".format(auc))
             print("Recall: {}".format(recall))
 
-    cnn.save()
+            cnn.save()
 
 if __name__ == '__main__':
     main()
