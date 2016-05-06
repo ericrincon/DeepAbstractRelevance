@@ -5,7 +5,7 @@ import nltk
 import os
 
 from nltk.corpus import stopwords
-
+from sklearn.feature_extraction.text import CountVectorizer
 
 def get_all_files(path):
     file_paths = []
@@ -18,6 +18,92 @@ def get_all_files(path):
                 continue
             file_paths.append(os.path.join(path, name))
     return file_paths
+
+
+def df2vocab(data_frames, use_lowercase=False):
+    if type(data_frames) is not list:
+        data_frames = [data_frames]
+
+    cv = CountVectorizer(lowercase=use_lowercase)
+    text = []
+
+    for data_frame in data_frames:
+        text.extend(data_frame.values.tolist())
+    cv.fit(text)
+
+    return cv.vocabulary_
+
+
+def text2seq(texts, vocab):
+    if type(texts) is not list:
+        texts = [texts]
+
+    tokenized_texts = []
+    seqs = []
+
+    for text in texts:
+        tokenized_texts.append(nltk.tokenize.word_tokenize(text))
+
+    for tokenized_text in tokenized_texts:
+        seq = []
+
+        for token in tokenized_text:
+            if token in vocab:
+                seq.append(vocab[token])
+        seqs.append(seq)
+
+    return seqs
+
+
+def get_data_as_seq(w2v, w2v_vector_len):
+    file_paths = get_all_files('Data')
+
+    X, y = [], []
+    embeddings = []
+
+    for file_path in file_paths:
+        data_frame = pd.read_csv(file_path)
+
+        abstract_text, abstract_labels = extract_abstract_and_labels(data_frame)
+        mesh_terms, title = extract_mesh_and_title(data_frame)
+        vocab_dict = df2vocab([abstract_text, mesh_terms, title])
+
+        labels = []
+
+        for i in range(abstract_text.shape[0]):
+            abstract = abstract_text.iloc[i]
+
+            if abstract == 'MISSING':
+                continue
+            else:
+                mesh = mesh_terms[i]
+                abstract_title = title[i]
+                labels.append(abstract_labels.iloc[i])
+
+            text_seq, mesh_seq, title_seq = text2seq([abstract, mesh, abstract_title], vocab_dict)
+
+            X.append([text_seq, mesh_seq, title_seq])
+            y.append(labels)
+
+        embedding = build_embeddings(vocab_dict, w2v, w2v_vector_len)
+        embeddings.append(embedding)
+
+    return X, y, embeddings
+
+
+def build_embeddings(vocab, w2v, w2v_vector_len):
+    embeddings = np.empty((len(vocab), w2v_vector_len))
+
+    for word, value in vocab.items():
+        if word in w2v:
+           word_vector = w2v[word]
+        else:
+            word_vector = np.zeros(w2v_vector_len)
+
+        embeddings[value, :] = word_vector
+
+    return embeddings
+
 
 
 def get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=False):
@@ -121,6 +207,7 @@ def extract_mesh_and_title(data_frame):
     titles = data_frame.iloc[:, 1]
 
     return mesh_terms, titles
+
 
 def get_data(max_words, word_vector_size, w2v):
 

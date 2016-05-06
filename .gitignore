@@ -22,3 +22,7 @@ model_fold_1
 *.local
 
 *.h5
+
+model.h5
+
+model.h5

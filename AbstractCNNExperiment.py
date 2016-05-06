@@ -9,7 +9,6 @@ from CNN import AbstractCNN
 from sklearn.cross_validation import KFold
 from gensim.models import Word2Vec
 
-
 def main():
     try:
         opts, args = getopt.getopt(sys.argv[1:], '', ['n_feature_maps=', 'epochs=', 'max_words=', 'dropout_p=',
