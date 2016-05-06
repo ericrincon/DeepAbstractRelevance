@@ -15,7 +15,7 @@ def main():
                                                       'undersample=', 'n_feature_maps=', 'criterion=',
                                                       'optimizer=', 'max_words=', 'layers=',
                                                       'hyperopt=', 'model_name=', 'w2v_path=', 'tacc=', 'use_all_date=',
-                                                      'patience=', 'filter_sizes=', 'model_type='])
+                                                      'patience=', 'filter_sizes=', 'model_type=', 'use_embedding='])
     except getopt.GetoptError as error:
         print(error)
         sys.exit(2)
@@ -37,6 +37,7 @@ def main():
     word_vector_size = 200
     using_tacc = False
     undersample = True
+    use_embedding = True
     use_all_date = False
     patience = 20
     p = .7
@@ -44,6 +45,9 @@ def main():
     for opt, arg in opts:
         if opt == '--window_size':
             window_size = int(arg)
+        elif opt == '--use_embedding':
+            if int(arg) == 0:
+                use_embedding = False
         elif opt == '--wiki':
             if arg == 0:
                 wiki = False
@@ -101,65 +105,115 @@ def main():
 
     print('Loading data...')
     if use_all_date:
-        X, y = DataLoader.get_data(max_words, word_vector_size, w2v)
+        X_list, y_list = DataLoader.get_data(max_words, word_vector_size, w2v)
 
         X_list.append(X)
         y_list.append(y)
+    elif use_embedding:
+
+        X_list, y_list, embedding_list = DataLoader.get_data_as_seq(w2v, w2v_size, max_words)
+
     else:
         X_list, y_list = DataLoader.get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=True)
 
     print('Loaded data...')
 
-    for X, y in zip(X_list, y_list):
+    for i, (X, y) in enumerate(zip(X_list, y_list)):
+        if use_embedding:
+            embedding = embedding_list[i]
+
         X_abstract, X_titles, X_mesh = X
-        n = X_abstract.shape[0]
+        n = len(X_abstract)
         kf = KFold(n, random_state=1337, shuffle=True, n_folds=5)
 
         for fold_idx, (train, test) in enumerate(kf):
-            X_abstract_train = X_abstract[train, :, :, :]
-            X_titles_train = X_titles[train, :, :, :]
-            X_mesh_train = X_mesh[train, :, :, :]
-            y_train = y[train, :]
+            if not use_embedding:
+                X_abstract_train = X_abstract[train, :, :, :]
+                X_titles_train = X_titles[train, :, :, :]
+                X_mesh_train = X_mesh[train, :, :, :]
+                y_train = y[train, :]
 
-            X_abstract_test = X_abstract[test, :, :, :]
-            X_titles_test = X_titles[test, :, :, :]
-            X_mesh_test = X_mesh[test, :, :, :]
-            y_test = y[test, :]
+                X_abstract_test = X_abstract[test, :, :, :]
+                X_titles_test = X_titles[test, :, :, :]
+                X_mesh_test = X_mesh[test, :, :, :]
+                y_test = y[test, :]
 
-            if undersample:
-                # Get all the targets that are not relevant i.e., y = 0
-                idx_undersample = np.where(y_train[:, 0] == 1)[0]
+                if undersample:
+                    # Get all the targets that are not relevant i.e., y = 0
+                    idx_undersample = np.where(y_train[:, 0] == 1)[0]
 
-                # Get all the targets that are relevant i.e., y = 1
-                idx_postive = np.where(y_train[:, 1] == 1)[0]
+                    # Get all the targets that are relevant i.e., y = 1
+                    idx_positive = np.where(y_train[:, 1] == 1)[0]
 
-                # Now sample from the no relevant targets
-                random_negative_sample = np.random.choice(idx_undersample, idx_postive.shape[0])
+                    # Now sample from the no relevant targets
+                    random_negative_sample = np.random.choice(idx_undersample, idx_positive.shape[0])
 
-                X_abstract_train_positive = X_abstract_train[idx_postive, :, :, :]
-                X_titles_train_positive = X_titles_train[idx_postive, :, :, :]
-                X_mesh_train_positive = X_mesh_train[idx_postive, :, :, :]
+                    X_abstract_train_positive = X_abstract_train[idx_positive, :, :, :]
+                    X_titles_train_positive = X_titles_train[idx_positive, :, :, :]
+                    X_mesh_train_positive = X_mesh_train[idx_positive, :, :, :]
 
-                X_abstract_train_negative = X_abstract_train[random_negative_sample, :, :, :]
-                X_titles_train_negative = X_titles_train[random_negative_sample, :, :, :]
-                X_mesh_train_negative = X_mesh_train[random_negative_sample, :, :, :]
+                    X_abstract_train_negative = X_abstract_train[random_negative_sample, :, :, :]
+                    X_titles_train_negative = X_titles_train[random_negative_sample, :, :, :]
+                    X_mesh_train_negative = X_mesh_train[random_negative_sample, :, :, :]
 
-                X_abstract_train = np.vstack((X_abstract_train_positive, X_abstract_train_negative))
-                X_titles_train = np.vstack((X_titles_train_positive, X_titles_train_negative))
-                X_mesh_train = np.vstack((X_mesh_train_positive, X_mesh_train_negative))
+                    X_abstract_train = np.vstack((X_abstract_train_positive, X_abstract_train_negative))
+                    X_titles_train = np.vstack((X_titles_train_positive, X_titles_train_negative))
+                    X_mesh_train = np.vstack((X_mesh_train_positive, X_mesh_train_negative))
 
-                y_train_positive = y_train[idx_postive, :]
-                y_train_negative = y_train[random_negative_sample, :]
-                y_train = np.vstack((y_train_positive, y_train_negative))
+                    y_train_positive = y_train[idx_positive, :]
+                    y_train_negative = y_train[random_negative_sample, :]
+                    y_train = np.vstack((y_train_positive, y_train_negative))
 
-                print("N y = 0: {}".format(random_negative_sample.shape[0]))
-                print("N y = 1: {}".format(idx_postive.shape[0]))
+                    print("N y = 0: {}".format(random_negative_sample.shape[0]))
+                    print("N y = 1: {}".format(idx_positive.shape[0]))
+            elif use_embedding:
+                X_abstract_train = X_abstract[train]
+                X_titles_train = X_titles[train]
+                X_mesh_train = X_mesh[train]
+                y_train = y[train, :]
+
+                X_abstract_test = X_abstract[test]
+                X_titles_test = X_titles[test]
+                X_mesh_test = X_mesh[test]
+                y_test = y[test, :]
+
+                if undersample:
+                    print(y_train)
+                    # Get all the targets that are not relevant i.e., y = 0
+                    idx_undersample = np.where(y_train[:, 0] == 1)[0]
+
+                    # Get all the targets that are relevant i.e., y = 1
+                    idx_positive = np.where(y_train[:, 1] == 1)[0]
+                    print(np.where(y_train[:, 1] == 1))
+                    print(idx_positive)
+                    # Now sample from the no relevant targets
+                    random_negative_sample = np.random.choice(idx_undersample, idx_positive.shape[0])
+
+                    X_abstract_train_positive = X_abstract_train[idx_positive]
+                    X_titles_train_positive = X_titles_train[idx_positive]
+                    X_mesh_train_positive = X_mesh_train[idx_positive]
+
+                    X_abstract_train_negative = X_abstract_train[random_negative_sample]
+                    X_titles_train_negative = X_titles_train[random_negative_sample]
+                    X_mesh_train_negative = X_mesh_train[random_negative_sample]
+
+                    X_abstract_train = np.hstack((X_abstract_train_positive, X_abstract_train_negative))
+                    X_titles_train = np.hstack((X_titles_train_positive, X_titles_train_negative))
+                    X_mesh_train = np.hstack((X_mesh_train_positive, X_mesh_train_negative))
+
+                    y_train_positive = y_train[idx_positive, :]
+                    y_train_negative = y_train[random_negative_sample, :]
+                    y_train = np.vstack((y_train_positive, y_train_negative))
+
+                    print("N y = 0: {}".format(random_negative_sample.shape[0]))
+                    print("N y = 1: {}".format(idx_positive.shape[0]))
+
 
             temp_model_name = model_name + '_fold_{}.h5'.format(fold_idx + 1)
 
-            cnn = AbstractCNN(n_classes=2,  max_words=max_words, w2v_size=w2v_size, vocab_size=1000, use_embedding=False,
+            cnn = AbstractCNN(n_classes=2,  max_words=max_words, w2v_size=w2v_size, vocab_size=1000, use_embedding=use_embedding,
                               filter_sizes=filter_sizes, n_feature_maps=n_feature_maps, dense_layer_sizes=dense_sizes.copy(),
-                              name=temp_model_name, activation_function=activation, dropout_p=p)
+                              name=temp_model_name, activation_function=activation, dropout_p=p, embedding=embedding)
             cnn.train(X_abstract_train, X_titles_train, X_mesh_train, y_train, n_epochs=epochs, optim_algo=optimizer,
                       criterion=criterion, verbose=1, patience=patience)
             accuracy, f1_score, precision, auc, recall = cnn.test(X_abstract_test, X_titles_test, X_mesh_test, y_test,

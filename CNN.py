@@ -2,7 +2,7 @@ from keras.layers import Input,Embedding, merge, Dense
 
 from keras.models import Model
 
-from keras.layers.convolutional import Convolution2D, MaxPooling2D
+from keras.layers.convolutional import Convolution2D, MaxPooling2D, Convolution1D, MaxPooling1D
 from keras.layers.core import Flatten, Activation, Dropout
 
 from keras.optimizers import Adam, SGD, Adagrad
@@ -250,7 +250,7 @@ class CICNN:
 
 class AbstractCNN:
     def __init__(self, n_classes, w2v_size, vocab_size, use_embedding, name, activation_function, dropout_p,
-                 dense_layer_sizes, max_words=None, n_feature_maps=None, filter_sizes=None):
+                 dense_layer_sizes, max_words=None, n_feature_maps=None, filter_sizes=None, embedding=None):
 
         if max_words is None:
             max_words = {'text': 220, 'mesh': 40, 'title': 14}
@@ -263,24 +263,31 @@ class AbstractCNN:
             n_feature_maps = {'text': 100, 'mesh': 50, 'title': 50}
 
         self.model = self.build_model(n_classes, max_words, w2v_size, vocab_size, use_embedding, filter_sizes,
-                                      n_feature_maps, dense_layer_sizes, activation_function, dropout_p)
+                                      n_feature_maps, dense_layer_sizes, activation_function, dropout_p,
+                                      embedding=embedding)
         self.model_name = name
 
     def build_conv_node(self, n_feature_maps, max_words, w2v_size, activation_function, filter_sizes, vocab_size,
-                        use_embedding, name):
+                        use_embedding, name, embedding=None):
         if use_embedding:
+            assert embedding is not None, 'Make sure you pass the embedding weights!'
+
             w2v_input = Input(shape=(max_words, ), name=name)
-            conv_input = Embedding(output_dim=w2v_size, input_dim=vocab_size, input_length=max_words)(w2v_input)
+            conv_input = Embedding(output_dim=w2v_size, input_dim=vocab_size, input_length=max_words,
+                                   weights=[embedding])(w2v_input)
         else:
             w2v_input = Input(shape=(1, max_words, w2v_size))
             conv_input = w2v_input
         conv_layers = []
 
         for filter_size in filter_sizes:
-            convolution_layer = Convolution2D(n_feature_maps, filter_size, w2v_size,
-                                              input_shape=(1, max_words, w2v_size))(conv_input)
-
-            max_layer = MaxPooling2D(pool_size=(max_words - filter_size + 1, 1))(convolution_layer)
+            if use_embedding:
+                convolution_layer = Convolution1D(n_feature_maps, filter_size, input_shape=(max_words, w2v_size))(conv_input)
+                max_layer = MaxPooling1D(pool_length=max_words - filter_size + 1)(convolution_layer)
+            else:
+                convolution_layer = Convolution2D(n_feature_maps, filter_size, w2v_size,
+                                                  input_shape=(1, max_words, w2v_size))(conv_input)
+                max_layer = MaxPooling2D(pool_size=(max_words - filter_size + 1, 1))(convolution_layer)
             activation_layer = Activation(activation_function)(max_layer)
             flattened_layer = Flatten()(activation_layer)
 
@@ -291,7 +298,7 @@ class AbstractCNN:
         return merge_layer, w2v_input
 
     def build_model(self, n_classes, max_words, w2v_size, vocab_size, use_embedding, filter_sizes, n_feature_maps,
-                    dense_layer_sizes, activation_function, dropout_p):
+                    dense_layer_sizes, activation_function, dropout_p, embedding=None):
 
         # From the paper http://arxiv.org/pdf/1511.07289v1.pdf
         # Supposed to perform better but lets see about that
@@ -300,13 +307,13 @@ class AbstractCNN:
 
         abstract_node, abstract_input = self.build_conv_node(n_feature_maps['text'], max_words['text'], w2v_size,
                                                              activation_function, filter_sizes['text'], vocab_size,
-                                                             use_embedding, 'abstract')
+                                                             use_embedding, 'abstract', embedding=embedding)
         title_node, title_input = self.build_conv_node(n_feature_maps['title'], max_words['title'], w2v_size,
                                                        activation_function, filter_sizes['title'], vocab_size,
-                                                       use_embedding, 'title')
+                                                       use_embedding, 'title', embedding=embedding)
         mesh_node, mesh_input = self.build_conv_node(n_feature_maps['mesh'], max_words['mesh'], w2v_size,
                                                      activation_function, filter_sizes['mesh'], vocab_size,
-                                                     use_embedding, 'mesh_terms')
+                                                     use_embedding, 'mesh_terms', embedding=embedding)
 
         merge_layer = merge([abstract_node, title_node, mesh_node], mode='concat')
 

@@ -34,32 +34,54 @@ def df2vocab(data_frames, use_lowercase=False):
     return cv.vocabulary_
 
 
-def text2seq(texts, vocab):
+def text2seq(texts, vocab, sizes):
     if type(texts) is not list:
         texts = [texts]
 
     tokenized_texts = []
     seqs = []
+    vocab_size = len(vocab)
+
+    # Add parameter PADDING to vocab????
+    vocab['PADDING'] = vocab_size
+    vocab_size += 1
 
     for text in texts:
         tokenized_texts.append(nltk.tokenize.word_tokenize(text))
 
-    for tokenized_text in tokenized_texts:
+    for i, tokenized_text in enumerate(tokenized_texts):
+        max_size = sizes[i]
+
         seq = []
 
         for token in tokenized_text:
             if token in vocab:
                 seq.append(vocab[token])
-        seqs.append(seq)
+            else:
+                vocab[token] = vocab_size
+                seq.append(vocab_size)
+                vocab_size += 1
+
+        n = len(seq)
+
+        if not n == max_size:
+            padding_size = max_size - n
+
+            padding_vector = [vocab['PADDING'] for j in range(padding_size)]
+
+            seq = seq + padding_vector
+
+        seqs.append(np.array(seq))
 
     return seqs
 
 
-def get_data_as_seq(w2v, w2v_vector_len):
+def get_data_as_seq(w2v, w2v_vector_len, max_words):
     file_paths = get_all_files('Data')
-
-    X, y = [], []
+    sizes = [max_words['text'], max_words['mesh'], max_words['title']]
+    X_list, label_list = [], []
     embeddings = []
+    n_examples = 0
 
     for file_path in file_paths:
         data_frame = pd.read_csv(file_path)
@@ -68,6 +90,11 @@ def get_data_as_seq(w2v, w2v_vector_len):
         mesh_terms, title = extract_mesh_and_title(data_frame)
         vocab_dict = df2vocab([abstract_text, mesh_terms, title])
 
+        text_seq_examples = []
+        title_seq_examples = []
+        mesh_seq_examples = []
+
+        X, y = [], []
         labels = []
 
         for i in range(abstract_text.shape[0]):
@@ -80,19 +107,39 @@ def get_data_as_seq(w2v, w2v_vector_len):
                 abstract_title = title[i]
                 labels.append(abstract_labels.iloc[i])
 
-            text_seq, mesh_seq, title_seq = text2seq([abstract, mesh, abstract_title], vocab_dict)
+            text_seq, mesh_seq, title_seq = text2seq([abstract, mesh, abstract_title], vocab_dict, sizes)
 
-            X.append([text_seq, mesh_seq, title_seq])
+            text_seq_examples.append(np.array(text_seq))
+            title_seq_examples.append(np.array(title_seq))
+            mesh_seq_examples.append(np.array(mesh_seq))
+
             y.append(labels)
 
         embedding = build_embeddings(vocab_dict, w2v, w2v_vector_len)
         embeddings.append(embedding)
+        X_list.append([np.array(text_seq_examples), np.array(title_seq_examples), np.array(mesh_seq_examples)])
+        label_list.append(y)
 
-    return X, y, embeddings
+    y_list = []
+
+    for y_ in label_list:
+        y = np.zeros((len(y_), 2))
+
+        for i in range(len(y_)):
+            label = y_[i]
+
+            if label == -1:
+                label = 0
+
+            y[i, label] = 1
+        y_list.append(y)
+
+
+    return X_list, y_list, embeddings
 
 
 def build_embeddings(vocab, w2v, w2v_vector_len):
-    embeddings = np.empty((len(vocab), w2v_vector_len))
+    embeddings = np.empty((len(vocab) + 1, w2v_vector_len))
 
     for word, value in vocab.items():
         if word in w2v:
