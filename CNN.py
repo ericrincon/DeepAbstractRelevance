@@ -10,7 +10,6 @@ from keras.optimizers import Adam, SGD, Adagrad
 from keras.layers.advanced_activations import ELU
 from keras.callbacks import EarlyStopping
 
-from keras.regularizers import l2
 from keras.constraints import maxnorm
 
 import sklearn.metrics as metrics
@@ -250,11 +249,21 @@ class CICNN:
 
 
 class AbstractCNN:
-    def __init__(self, n_classes,  abstract_max_words, title_max_words, mesh_max_words, w2v_size, vocab_size,
-                 use_embedding, filter_sizes, n_filters, dense_layer_sizes, name, activation_function, dropout_p):
-        self.model = self.build_model(n_classes,  abstract_max_words, title_max_words, mesh_max_words, w2v_size,
-                                      vocab_size, use_embedding, filter_sizes, n_filters, dense_layer_sizes,
-                                      activation_function, dropout_p)
+    def __init__(self, n_classes, w2v_size, vocab_size, use_embedding, name, activation_function, dropout_p,
+                 dense_layer_sizes, max_words=None, n_feature_maps=None, filter_sizes=None):
+
+        if max_words is None:
+            max_words = {'text': 220, 'mesh': 40, 'title': 14}
+
+        if filter_sizes is None:
+            filter_sizes = {'text': [2, 3, 5, 7, 9, 12, 13, 17],
+                            'mesh': [2, 3, 5],
+                            'title': [2, 3, 5, 7, 9]}
+        if n_feature_maps is None:
+            n_feature_maps = {'text': 100, 'mesh': 50, 'title': 50}
+
+        self.model = self.build_model(n_classes, max_words, w2v_size, vocab_size, use_embedding, filter_sizes,
+                                      n_feature_maps, dense_layer_sizes, activation_function, dropout_p)
         self.model_name = name
 
     def build_conv_node(self, n_feature_maps, max_words, w2v_size, activation_function, filter_sizes, vocab_size,
@@ -280,20 +289,24 @@ class AbstractCNN:
         merge_layer = merge(conv_layers, mode='concat')
 
         return merge_layer, w2v_input
-    def build_model(self, n_classes, abstract_max_words, title_max_words, mesh_max_words, w2v_size, vocab_size,
-                    use_embedding, filter_sizes, n_feature_maps, dense_layer_sizes, activation_function, dropout_p):
+
+    def build_model(self, n_classes, max_words, w2v_size, vocab_size, use_embedding, filter_sizes, n_feature_maps,
+                    dense_layer_sizes, activation_function, dropout_p):
 
         # From the paper http://arxiv.org/pdf/1511.07289v1.pdf
         # Supposed to perform better but lets see about that
         if activation_function == 'elu':
             activation_function = ELU(alpha=1.0)
 
-        abstract_node, abstract_input = self.build_conv_node(n_feature_maps, abstract_max_words, w2v_size, activation_function, filter_sizes,
-                                             vocab_size, use_embedding, 'abstract')
-        title_node, title_input = self.build_conv_node(n_feature_maps, title_max_words, w2v_size, activation_function, filter_sizes,
-                                                       vocab_size, use_embedding, 'title')
-        mesh_node, mesh_input = self.build_conv_node(n_feature_maps, mesh_max_words, w2v_size, activation_function, filter_sizes,
-                                                     vocab_size, use_embedding, 'mesh_terms')
+        abstract_node, abstract_input = self.build_conv_node(n_feature_maps['text'], max_words['text'], w2v_size,
+                                                             activation_function, filter_sizes['text'], vocab_size,
+                                                             use_embedding, 'abstract')
+        title_node, title_input = self.build_conv_node(n_feature_maps['title'], max_words['title'], w2v_size,
+                                                       activation_function, filter_sizes['title'], vocab_size,
+                                                       use_embedding, 'title')
+        mesh_node, mesh_input = self.build_conv_node(n_feature_maps['mesh'], max_words['mesh'], w2v_size,
+                                                     activation_function, filter_sizes['mesh'], vocab_size,
+                                                     use_embedding, 'mesh_terms')
 
         merge_layer = merge([abstract_node, title_node, mesh_node], mode='concat')
 
@@ -343,7 +356,6 @@ class AbstractCNN:
 
         if save_model:
             self.model.save_weights(self.model_name + '.h5', overwrite=True)
-
 
     def test(self, X_abstract, X_titles, X_mesh, y, print_output=False):
         truth = []

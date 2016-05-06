@@ -4,11 +4,10 @@ import nltk
 import numpy as np
 import DataLoader
 
-from CNN import CNN
+from CNN import AbstractCNN
 
 from sklearn.cross_validation import KFold
 from gensim.models import Word2Vec
-
 
 
 def main():
@@ -111,6 +110,7 @@ def main():
         y_list.append(y)
     else:
         use_acnn = False
+
         if model_type == 'acnn':
             use_acnn = True
         X_list, y_list = DataLoader.get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=use_acnn)
@@ -119,16 +119,32 @@ def main():
     run(X_list, y_list, model_name, max_words, w2v_size, n_feature_maps, dense_sizes, optimizer, criterion,
                     epochs, filter_sizes, activation, undersample, p, patience, model_type)
 
-
 def run(X_list, y_list, model_name, max_words, w2v_size, n_feature_maps, dense_sizes, optimizer, criterion, epochs,
                   filter_sizes, activation, undersample, p, patience, model_type):
     for X, y in zip(X_list, y_list):
-        n = X.shape[0]
+        if model_type == 'acnn':
+            X_abstract, X_titles, X_mesh = X
+
+        if model_type == 'cnn':
+            n = X.shape[0]
+        elif model_type == 'acnn':
+            n = X_abstract.shape[0]
         kf = KFold(n, random_state=1337, shuffle=True, n_folds=5)
 
         for fold_idx, (train, test) in enumerate(kf):
-            X_train, y_train = X[train, :, :, :], y[train, :]
-            X_test, y_test = X[test, :, :, :], y[test, :]
+            if model_type == 'cnn':
+                X_train, y_train = X[train, :, :, :], y[train, :]
+                X_test, y_test = X[test, :, :, :], y[test, :]
+            elif model_type == 'acnn':
+                X_abstract_train = X_abstract[train, :, :, :]
+                X_titles_train = X_titles[train, :, :, :]
+                X_mesh_train = X_mesh[train, :, :, :]
+                y_train = y[train, :]
+
+                X_abstract_test = X_abstract[test, :, :, :]
+                X_titles_test = X_titles[test, :, :, :]
+                X_mesh_test = X_mesh[test, :, :, :]
+                y_test = y[test, :]
 
             if undersample:
                 # Get all the targets that are not relevant i.e., y = 0
@@ -140,10 +156,17 @@ def run(X_list, y_list, model_name, max_words, w2v_size, n_feature_maps, dense_s
                 # Now sample from the no relevant targets
                 random_negative_sample = np.random.choice(idx_undersample, idx_postive.shape[0])
 
-                X_train_positive = X_train[idx_postive, :, :, :]
-                X_train_negative = X_train[random_negative_sample, :, :, :]
+                X_abstract_train_positive = X_abstract_train[idx_postive, :, :, :]
+                X_titles_train_positive = X_titles_train[idx_postive, :, :, :]
+                X_mesh_train_positive = X_mesh_train[idx_postive, :, :, :]
 
-                X_train = np.vstack((X_train_positive, X_train_negative))
+                X_abstract_train_negative = X_abstract_train[random_negative_sample, :, :, :]
+                X_titles_train_negative = X_titles_train[random_negative_sample, :, :, :]
+                X_mesh_train_negative = X_mesh_train[random_negative_sample, :, :, :]
+
+                X_abstract_train = np.vstack((X_abstract_train_positive, X_abstract_train_negative))
+                X_titles_train = np.vstack((X_titles_train_positive, X_titles_train_negative))
+                X_mesh_train = np.vstack((X_mesh_train_positive, X_mesh_train_negative))
 
                 y_train_positive = y_train[idx_postive, :]
                 y_train_negative = y_train[random_negative_sample, :]
@@ -152,18 +175,24 @@ def run(X_list, y_list, model_name, max_words, w2v_size, n_feature_maps, dense_s
                 print("N y = 0: {}".format(random_negative_sample.shape[0]))
                 print("N y = 1: {}".format(idx_postive.shape[0]))
 
+            _X = [X_abstract_train, X_titles_train, X_mesh_train, X_abstract_test, X_titles_test, X_mesh_test]
+            _y = [y_train, y_test]
+
 
             temp_model_name = model_name + '_fold_{}.h5'.format(fold_idx + 1)
 
-            print("X_train shape: {}".format(X_train.shape))
 
-            cnn = CNN(n_classes=2, max_words=max_words, w2v_size=w2v_size, vocab_size=1000, use_embedding=False,
-                      filter_sizes=filter_sizes, n_filters=n_feature_maps, dense_layer_sizes=dense_sizes.copy(),
-                      name=temp_model_name, activation_function=activation, dropout_p=p)
+            X_abstract_train, X_titles_train, X_mesh_train, X_abstract_test, X_titles_test, X_mesh_test = X
+            y_train, y_test = y
 
-            cnn.train(X_train, y_train, n_epochs=epochs, optim_algo=optimizer, criterion=criterion, verbose=1,
-                      patience=patience)
-            accuracy, f1_score, precision, auc, recall = cnn.test(X_test, y_test, print_output=True)
+            cnn = AbstractCNN(n_classes=2,  max_words=max_words, w2v_size=w2v_size, vocab_size=1000, use_embedding=False,
+                              filter_sizes=filter_sizes, n_feature_maps=n_feature_maps, dense_layer_sizes=dense_sizes.copy(),
+                              name=temp_model_name, activation_function=activation, dropout_p=p)
+            cnn.train(X_abstract_train, X_titles_train, X_mesh_train, y_train, n_epochs=epochs, optim_algo=optimizer,
+                      criterion=criterion, verbose=1, patience=patience)
+            accuracy, f1_score, precision, auc, recall = cnn.test(X_abstract_test, X_titles_test, X_mesh_test, y_test,
+                                                                  print_output=True)
+
 
             print("Accuracy: {}".format(accuracy))
             print("F1: {}".format(f1_score))
@@ -171,7 +200,7 @@ def run(X_list, y_list, model_name, max_words, w2v_size, n_feature_maps, dense_s
             print("AUC: {}".format(auc))
             print("Recall: {}".format(recall))
 
-    cnn.save()
+            cnn.save()
 
 if __name__ == '__main__':
     main()
