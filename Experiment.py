@@ -17,7 +17,7 @@ def main():
                                                       'undersample=', 'n_feature_maps=', 'criterion=',
                                                       'optimizer=', 'max_words=', 'layers=',
                                                       'hyperopt=', 'experiment_name=', 'w2v_path=', 'tacc=', 'use_all_date=',
-                                                      'patience=', 'filter_sizes=', 'model_type='])
+                                                      'patience=', 'filter_sizes=', 'model_type=', 'verbose='])
     except getopt.GetoptError as error:
         print(error)
         sys.exit(2)
@@ -41,10 +41,13 @@ def main():
     patience = 20
     p = .5
     model_type = 'cnn'
+    verbose = 1
 
     for opt, arg in opts:
         if opt == '--window_size':
             window_size = int(arg)
+        elif opt == '--verbose':
+            verbose = int(arg)
         elif opt == '--wiki':
             if arg == 0:
                 wiki = False
@@ -171,7 +174,7 @@ def main():
                       filter_sizes=filter_sizes, n_filters=n_feature_maps, dense_layer_sizes=dense_sizes.copy(),
                       name=temp_model_name, activation_function=activation, dropout_p=p)
 
-            cnn.train(X_train, y_train, n_epochs=epochs, optim_algo=optimizer, criterion=criterion, verbose=1,
+            cnn.train(X_train, y_train, n_epochs=epochs, optim_algo=optimizer, criterion=criterion, verbose=verbose,
                       patience=patience, save_model=True)
             accuracy, f1_score, precision, auc, recall = cnn.test(X_test, y_test, print_output=True)
 

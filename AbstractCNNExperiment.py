@@ -15,7 +15,8 @@ def main():
                                                       'undersample=', 'n_feature_maps=', 'criterion=',
                                                       'optimizer=', 'max_words=', 'layers=',
                                                       'hyperopt=', 'experiment_name=', 'w2v_path=', 'tacc=', 'use_all_date=',
-                                                      'patience=', 'filter_sizes=', 'model_type=', 'use_embedding='])
+                                                      'patience=', 'filter_sizes=', 'model_type=', 'use_embedding=',
+                                                      'verbose='])
     except getopt.GetoptError as error:
         print(error)
         sys.exit(2)
@@ -42,10 +43,13 @@ def main():
     use_all_date = False
     patience = 20
     p = .7
+    verbose = 1
 
     for opt, arg in opts:
         if opt == '--window_size':
             window_size = int(arg)
+        elif opt == '--verbose':
+            verbose = int(arg)
         elif opt == '--use_embedding':
             if int(arg) == 0:
                 use_embedding = False
@@ -231,7 +235,7 @@ def main():
                               filter_sizes=filter_sizes, n_feature_maps=n_feature_maps, dense_layer_sizes=dense_sizes.copy(),
                               name=temp_model_name, activation_function=activation, dropout_p=p, embedding=embedding)
             cnn.train(X_abstract_train, X_titles_train, X_mesh_train, y_train, n_epochs=epochs, optim_algo=optimizer,
-                      criterion=criterion, verbose=1, patience=patience)
+                      criterion=criterion, verbose=verbose, patience=patience)
             accuracy, f1_score, precision, auc, recall = cnn.test(X_abstract_test, X_titles_test, X_mesh_test, y_test,
                                                                   print_output=True)
 

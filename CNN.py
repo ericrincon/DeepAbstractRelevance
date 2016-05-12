@@ -42,13 +42,9 @@ class CNN:
         conv_layers = []
 
         for filter_size in filter_sizes:
-           # convolution_layer = Convolution2D(n_filters, filter_size, w2v_size,
-          #                                    input_shape=(1, max_words, w2v_size))(conv_input)
-
             convolution_layer = Convolution1D(nb_filter=n_filters, input_dim=max_words, filter_length=filter_size,
                                               input_shape=(max_words, w2v_size))(conv_input)
 
-          #  max_layer = MaxPooling2D(pool_size=(max_words - filter_size + 1, 1))(convolution_layer)
             max_pooling = MaxPooling1D(pool_length=(max_words - filter_size + 1))(convolution_layer)
             activation_layer = Activation(activation_function)(max_pooling)
             flattened_layer = Flatten()(activation_layer)
@@ -296,8 +292,6 @@ class AbstractCNN:
             else:
                 convolution_layer = Convolution1D(n_feature_maps, filter_size, input_shape=(max_words, w2v_size))(conv_input)
 
-           #     convolution_layer = Convolution2D(n_feature_maps, filter_size, w2v_size,
-        #                                          input_shape=(1, max_words, w2v_size))(conv_input)
                 max_layer = MaxPooling1D(pool_length=(max_words - filter_size + 1))(convolution_layer)
 
             activation_layer = Activation(activation_function)(max_layer)
