@@ -16,7 +16,7 @@ def main():
         opts, args = getopt.getopt(sys.argv[1:], '', ['n_feature_maps=', 'epochs=', 'max_words=', 'dropout_p=',
                                                       'undersample=', 'n_feature_maps=', 'criterion=',
                                                       'optimizer=', 'max_words=', 'layers=',
-                                                      'hyperopt=', 'model_name=', 'w2v_path=', 'tacc=', 'use_all_date=',
+                                                      'hyperopt=', 'experiment_name=', 'w2v_path=', 'tacc=', 'use_all_date=',
                                                       'patience=', 'filter_sizes=', 'model_type='])
     except getopt.GetoptError as error:
         print(error)
@@ -28,16 +28,16 @@ def main():
     epochs = 50
     criterion = 'categorical_crossentropy'
     optimizer = 'adam'
-    model_name = 'model'
+    experiment_name = 'cnn'
     w2v_size = 200
     activation = 'relu'
     dense_sizes = [400, 400]
-    filter_sizes = [2, 3, 5]
-    max_words = 220
+    filter_sizes = [2, 3, 4, 5]
+    max_words = 280
     word_vector_size = 200
     using_tacc = False
-    undersample = False
-    use_all_date = True
+    undersample = True
+    use_all_date = False
     patience = 20
     p = .5
     model_type = 'cnn'
@@ -110,21 +110,27 @@ def main():
         X_list.append(X)
         y_list.append(y)
     else:
-        X_list, y_list = DataLoader.get_data_separately1D({'text': max_words}, word_vector_size, w2v,
-                                                          use_abstract_cnn=False)
+        X_list, y_list = DataLoader.get_data_separately({'text': max_words}, word_vector_size, w2v,
+                                                          use_abstract_cnn=False, preprocess_text=False)
 
     print('Loaded data...')
 
-    fold_accuracies = []
-    fold_recalls = []
-    fold_precisions =[]
-    fold_aucs = []
-    fold_f1s = []
+    dataset_names = DataLoader.get_all_files('Data')
+    dataset_names = [name.split('/')[1].split('.')[0] for name in dataset_names]
 
+    for i, (X, y) in enumerate(zip(X_list, y_list)):
+        print("Dataset: {}".format(dataset_names[i]))
 
-    for X, y in zip(X_list, y_list):
+        model_name = dataset_names[i]
+
         n = X.shape[0]
         kf = KFold(n, random_state=1337, shuffle=True, n_folds=5)
+
+        fold_accuracies = []
+        fold_recalls = []
+        fold_precisions =[]
+        fold_aucs = []
+        fold_f1s = []
 
         for fold_idx, (train, test) in enumerate(kf):
             X_train = X[train]
@@ -134,14 +140,12 @@ def main():
             y_test = y[test, :]
 
             if undersample:
-                print(y_train)
                 # Get all the targets that are not relevant i.e., y = 0
                 idx_undersample = np.where(y_train[:, 0] == 1)[0]
 
                 # Get all the targets that are relevant i.e., y = 1
                 idx_positive = np.where(y_train[:, 1] == 1)[0]
-                print(np.where(y_train[:, 1] == 1)[0])
-                print(idx_positive.shape[0])
+
                 print("idx_undersample length: {}".format(idx_undersample.shape[0]))
 
                 # Now sample from the no relevant targets
@@ -159,7 +163,7 @@ def main():
                 print("N y = 0: {}".format(random_negative_sample.shape[0]))
                 print("N y = 1: {}".format(idx_positive.shape[0]))
 
-            temp_model_name = model_name + '_fold_{}.h5'.format(fold_idx + 1)
+            temp_model_name = experiment_name + '_'+ model_name + '_fold_{}'.format(fold_idx + 1)
 
             print("X_train shape: {}".format(len(X_train)))
 
@@ -168,16 +172,16 @@ def main():
                       name=temp_model_name, activation_function=activation, dropout_p=p)
 
             cnn.train(X_train, y_train, n_epochs=epochs, optim_algo=optimizer, criterion=criterion, verbose=1,
-                      patience=patience)
+                      patience=patience, save_model=True)
             accuracy, f1_score, precision, auc, recall = cnn.test(X_test, y_test, print_output=True)
 
-            cnn.save()
 
             print("Accuracy: {}".format(accuracy))
             print("F1: {}".format(f1_score))
             print("Precision: {}".format(precision))
             print("AUC: {}".format(auc))
             print("Recall: {}".format(recall))
+            print('\n')
 
             fold_accuracies.append(accuracy)
             fold_precisions.append(precision)
@@ -196,6 +200,7 @@ def main():
         print("Fold Average Precision: {}".format(average_precision))
         print("Fold Average AUC: {}".format(average_auc))
         print("Fold Average Recall: {}".format(average_recall))
+        print('\n')
 
 
 if __name__ == '__main__':

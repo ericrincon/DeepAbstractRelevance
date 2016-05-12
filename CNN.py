@@ -130,10 +130,6 @@ class CNN:
 
         return predicted_classes
 
-    def save(self):
-        self.model.save_weights(self.model_name)
-
-
 
 class CICNN:
     def __init__(self, n_classes, max_words, w2v_size, vocab_size, filter_sizes, n_filters,
@@ -262,9 +258,9 @@ class AbstractCNN:
             max_words = {'text': 220, 'mesh': 40, 'title': 14}
 
         if filter_sizes is None:
-            filter_sizes = {'text': [2, 3, 5, 7, 9, 12, 13, 17],
+            filter_sizes = {'text': [2, 3, 5],
                             'mesh': [2, 3, 5],
-                            'title': [2, 3, 5, 7, 9]}
+                            'title': [2, 3, 5]}
         if n_feature_maps is None:
             n_feature_maps = {'text': 100, 'mesh': 50, 'title': 50}
 
@@ -276,8 +272,7 @@ class AbstractCNN:
     def build_conv_node(self, n_feature_maps, max_words, w2v_size, activation_function, filter_sizes, vocab_size,
                         use_embedding, name, embedding=None):
 
-
-        conv_input = Input(shape=(max_words, ), name='input_layer')
+        conv_input = Input(shape=(max_words, w2v_size), name=name)
 
         """
         if use_embedding:
@@ -299,9 +294,11 @@ class AbstractCNN:
                 convolution_layer = Convolution1D(n_feature_maps, filter_size, input_shape=(max_words, w2v_size))(conv_input)
                 max_layer = MaxPooling1D(pool_length=max_words - filter_size + 1)(convolution_layer)
             else:
-                convolution_layer = Convolution2D(n_feature_maps, filter_size, w2v_size,
-                                                  input_shape=(1, max_words, w2v_size))(conv_input)
-                max_layer = MaxPooling2D(pool_size=(max_words - filter_size + 1, 1))(convolution_layer)
+                convolution_layer = Convolution1D(n_feature_maps, filter_size, input_shape=(max_words, w2v_size))(conv_input)
+
+           #     convolution_layer = Convolution2D(n_feature_maps, filter_size, w2v_size,
+        #                                          input_shape=(1, max_words, w2v_size))(conv_input)
+                max_layer = MaxPooling1D(pool_length=(max_words - filter_size + 1))(convolution_layer)
 
             activation_layer = Activation(activation_function)(max_layer)
             flattened_layer = Flatten()(activation_layer)
@@ -322,13 +319,13 @@ class AbstractCNN:
 
         abstract_node, abstract_input = self.build_conv_node(n_feature_maps['text'], max_words['text'], w2v_size,
                                                              activation_function, filter_sizes['text'], vocab_size,
-                                                             use_embedding, 'abstract', embedding=embedding)
+                                                             use_embedding, 'abstract_input', embedding=embedding)
         title_node, title_input = self.build_conv_node(n_feature_maps['title'], max_words['title'], w2v_size,
                                                        activation_function, filter_sizes['title'], vocab_size,
-                                                       use_embedding, 'title', embedding=embedding)
+                                                       use_embedding, 'title_input', embedding=embedding)
         mesh_node, mesh_input = self.build_conv_node(n_feature_maps['mesh'], max_words['mesh'], w2v_size,
                                                      activation_function, filter_sizes['mesh'], vocab_size,
-                                                     use_embedding, 'mesh_terms', embedding=embedding)
+                                                     use_embedding, 'mesh_terms_input', embedding=embedding)
 
         merge_layer = merge([abstract_node, title_node, mesh_node], mode='concat')
 

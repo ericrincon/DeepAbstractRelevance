@@ -258,9 +258,7 @@ def build_embeddings(vocab, w2v, w2v_vector_len):
 
     return embeddings
 
-
-
-def get_data_separately1D(max_words, word_vector_size, w2v, use_abstract_cnn=False):
+def get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=False, preprocess_text=False):
     file_paths = get_all_files('Data')
     X_list, y_list = [], []
 
@@ -291,21 +289,29 @@ def get_data_separately1D(max_words, word_vector_size, w2v, use_abstract_cnn=Fal
                 if use_abstract_cnn:
                     mesh_term = mesh_terms[i]
                     abstract_title = title[i]
-                    preprocessed_mesh_terms = preprocess(mesh_term, tokenize=True)
-                    preprocessed_title = preprocess(abstract_title, tokenize=True)
 
-                    total_mesh_terms += len(preprocessed_mesh_terms)
-                    total_words_title += len(preprocessed_title)
+                    if preprocess_text:
+                        mesh_term = preprocess(mesh_term, tokenize=True)
+                        abstract_title = preprocess(abstract_title, tokenize=True)
+                    else:
+                        mesh_term = nltk.word_tokenize(mesh_term)
+                        abstract_title = nltk.word_tokenize(abstract_title)
 
-                    abstract_mesh_terms.append(preprocessed_mesh_terms)
-                    titles.append(preprocessed_title)
+                    total_mesh_terms += len(mesh_terms)
+                    total_words_title += len(abstract_title)
 
-                preprocessed_abstract = preprocess(abstract, tokenize=True)
+                    abstract_mesh_terms.append(mesh_term)
+                    titles.append(abstract_title)
 
-                total_words += len(preprocessed_abstract)
+                if preprocess_text:
+                    abstract = preprocess(abstract, tokenize=True)
+                else:
+                    abstract = nltk.word_tokenize(abstract)
+
+                total_words += len(abstract)
                 n_abstracts += 1.0
 
-                abstracts_as_words.append(preprocessed_abstract)
+                abstracts_as_words.append(abstract)
                 labels.append(abstract_labels.iloc[i])
 
         X = np.empty((len(abstracts_as_words), max_words['text'], word_vector_size))
@@ -328,95 +334,6 @@ def get_data_separately1D(max_words, word_vector_size, w2v, use_abstract_cnn=Fal
                 X_title[i, :, :] = title_matrix
 
             X[i, :, :] = word_matrix
-
-            if label == -1:
-                label = 0
-            y[i, label] = 1
-        if use_abstract_cnn:
-            X_list.append([X, X_title, X_mesh])
-        else:
-            X_list.append(X)
-        y_list.append(y)
-    average_word_per_abstract = float(total_words)/float(n_abstracts)
-    average_words_per_title = float(total_words_title)/float(n_abstracts)
-    average_words_per_mesh = float(total_mesh_terms)/float(n_abstracts)
-
-    print('Average words per abstract: {}'.format(average_word_per_abstract))
-    print('Average words per title: {}'.format(average_words_per_title))
-    print('Average words per mesh terms: {}'.format(average_words_per_mesh))
-
-    return X_list, y_list
-
-
-
-def get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=False):
-    file_paths = get_all_files('Data')
-    X_list, y_list = [], []
-
-    total_words = 0.0
-    total_words_title = 0.0
-    total_mesh_terms = 0.0
-
-    n_abstracts = 0.0
-
-    for file in file_paths:
-        data_frame = pd.read_csv(file)
-
-        abstract_text, abstract_labels = extract_abstract_and_labels(data_frame)
-        mesh_terms, title = extract_mesh_and_title(data_frame)
-
-        abstracts_as_words = []
-        labels = []
-        if use_abstract_cnn:
-            abstract_mesh_terms = []
-            titles = []
-
-        for i in range(abstract_text.shape[0]):
-            abstract = abstract_text.iloc[i]
-
-            if abstract == 'MISSING':
-                continue
-            else:
-                if use_abstract_cnn:
-                    mesh_term = mesh_terms[i]
-                    abstract_title = title[i]
-                    preprocessed_mesh_terms = preprocess(mesh_term, tokenize=True)
-                    preprocessed_title = preprocess(abstract_title, tokenize=True)
-
-                    total_mesh_terms += len(preprocessed_mesh_terms)
-                    total_words_title += len(preprocessed_title)
-
-                    abstract_mesh_terms.append(preprocessed_mesh_terms)
-                    titles.append(preprocessed_title)
-
-                preprocessed_abstract = preprocess(abstract, tokenize=True)
-
-                total_words += len(preprocessed_abstract)
-                n_abstracts += 1.0
-
-                abstracts_as_words.append(preprocessed_abstract)
-                labels.append(abstract_labels.iloc[i])
-
-        X = np.empty((len(abstracts_as_words), max_words['text'], word_vector_size))
-
-        if use_abstract_cnn:
-            X_mesh = np.empty((len(abstract_mesh_terms), max_words['mesh'], word_vector_size))
-            X_title = np.empty((len(titles), max_words['title'], word_vector_size))
-
-        y = np.zeros((len(labels), 2))
-
-        for i, (abstract, label) in enumerate(zip(abstracts_as_words, labels)):
-
-            word_matrix = text2w2v(abstract, max_words['text'], w2v, word_vector_size)
-
-            if use_abstract_cnn:
-                mesh_term_matrix = text2w2v(abstract_mesh_terms[i], max_words['mesh'], w2v, word_vector_size)
-                title_matrix = text2w2v(titles[i], max_words['title'], w2v, word_vector_size)
-
-                X_mesh[i, :, :] = mesh_term_matrix
-                X_title[i, :, :] = title_matrix
-
-            X[i, 0, :, :] = word_matrix
 
             if label == -1:
                 label = 0
@@ -481,7 +398,8 @@ def get_data(max_words, word_vector_size, w2v):
             labels.append(labels_df.iloc[i])
 
             total_words += len(abstracts_as_words)
-    X = np.empty((len(abstracts_as_words), max_words , word_vector_size))
+
+    X = np.empty((len(abstracts_as_words), max_words, word_vector_size))
     y = np.zeros((len(labels), 2))
 
     print(total_words/len(abstracts_as_words))
@@ -544,7 +462,7 @@ def preprocess(line, tokenize=True, to_lower=True):
     final_line = translated_line.translate(translation_table_numbers)
 
     if tokenize:
-        line_tokens = final_line.split()
+        line_tokens = nltk.word_tokenize(final_line)
 
         return line_tokens
     else:

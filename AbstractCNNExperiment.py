@@ -14,7 +14,7 @@ def main():
         opts, args = getopt.getopt(sys.argv[1:], '', ['n_feature_maps=', 'epochs=', 'max_words=', 'dropout_p=',
                                                       'undersample=', 'n_feature_maps=', 'criterion=',
                                                       'optimizer=', 'max_words=', 'layers=',
-                                                      'hyperopt=', 'model_name=', 'w2v_path=', 'tacc=', 'use_all_date=',
+                                                      'hyperopt=', 'experiment_name=', 'w2v_path=', 'tacc=', 'use_all_date=',
                                                       'patience=', 'filter_sizes=', 'model_type=', 'use_embedding='])
     except getopt.GetoptError as error:
         print(error)
@@ -24,21 +24,22 @@ def main():
     epochs = 50
     criterion = 'categorical_crossentropy'
     optimizer = 'adam'
-    model_name = 'model'
+    experiment_name = 'abstractCNN'
     w2v_size = 200
     activation = 'relu'
     dense_sizes = [400, 400]
-    max_words = {'text': 220, 'mesh': 40, 'title': 14}
+    max_words = {'text': 260, 'mesh': 40, 'title': 14}
 
-    filter_sizes = {'text': [2, 3, 5, 7, 9, 12, 13, 17],
-                    'mesh': [2, 3, 5],
-                    'title': [2, 3, 5, 7, 9]}
-    n_feature_maps = {'text': 100, 'mesh': 50, 'title': 50}
+    filter_sizes = {'text': [2, 3, 4, 5],
+                    'mesh': [2, 3, 4, 5],
+                    'title': [2, 3, 4, 5]}
+    n_feature_maps = {'text': 30, 'mesh': 30, 'title': 30}
     word_vector_size = 200
     using_tacc = False
     undersample = True
-    use_embedding = True
-    use_all_date = True
+    use_embedding = False
+    embedding = None
+    use_all_date = False
     patience = 20
     p = .7
 
@@ -91,6 +92,7 @@ def main():
         elif opt == '--undersample':
             if int(arg) == 0:
                 undersample = False
+
         else:
             print("Option {} is not valid!".format(opt))
 
@@ -114,17 +116,30 @@ def main():
         X_list, y_list, embedding_list = DataLoader.get_data_as_seq(w2v, w2v_size, max_words)
 
     else:
-        X_list, y_list = DataLoader.get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=True)
+        X_list, y_list = DataLoader.get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=True,
+                                                        preprocess_text=False)
 
     print('Loaded data...')
+
+    dataset_names = DataLoader.get_all_files('Data')
+    dataset_names = [name.split('/')[1].split('.')[0] for name in dataset_names]
 
     for i, (X, y) in enumerate(zip(X_list, y_list)):
         if use_embedding:
             embedding = embedding_list[i]
 
+        model_name = dataset_names[i]
+
+        print("Dataset: {}".format(model_name))
+
         X_abstract, X_titles, X_mesh = X
-        n = len(X_abstract)
+        n = X_abstract.shape[0]
         kf = KFold(n, random_state=1337, shuffle=True, n_folds=5)
+        fold_accuracies = []
+        fold_recalls = []
+        fold_precisions =[]
+        fold_aucs = []
+        fold_f1s = []
 
         for fold_idx, (train, test) in enumerate(kf):
             if not use_embedding:
@@ -210,7 +225,7 @@ def main():
                     print("N y = 1: {}".format(idx_positive.shape[0]))
 
 
-            temp_model_name = model_name + '_fold_{}.h5'.format(fold_idx + 1)
+            temp_model_name = experiment_name + '_' + model_name + '_fold_{}'.format(fold_idx + 1)
 
             cnn = AbstractCNN(n_classes=2,  max_words=max_words, w2v_size=w2v_size, vocab_size=1000, use_embedding=use_embedding,
                               filter_sizes=filter_sizes, n_feature_maps=n_feature_maps, dense_layer_sizes=dense_sizes.copy(),
@@ -220,12 +235,30 @@ def main():
             accuracy, f1_score, precision, auc, recall = cnn.test(X_abstract_test, X_titles_test, X_mesh_test, y_test,
                                                                   print_output=True)
 
+
             print("Accuracy: {}".format(accuracy))
             print("F1: {}".format(f1_score))
             print("Precision: {}".format(precision))
             print("AUC: {}".format(auc))
             print("Recall: {}".format(recall))
 
-            cnn.save()
+            fold_accuracies.append(accuracy)
+            fold_precisions.append(precision)
+            fold_recalls.append(recall)
+            fold_aucs.append(auc)
+            fold_f1s.append(f1_score)
+
+        average_accuracy = np.mean(fold_accuracies)
+        average_precision = np.mean(fold_precisions)
+        average_recall = np.mean(fold_recalls)
+        average_auc = np.mean(fold_aucs)
+        average_f1 = np.mean(fold_f1s)
+
+        print("Fold Average Accuracy: {}".format(average_accuracy))
+        print("Fold Average F1: {}".format(average_f1))
+        print("Fold Average Precision: {}".format(average_precision))
+        print("Fold Average AUC: {}".format(average_auc))
+        print("Fold Average Recall: {}".format(average_recall))
+        print('\n')
 if __name__ == '__main__':
     main()
