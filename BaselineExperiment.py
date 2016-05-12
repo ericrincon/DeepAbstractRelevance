@@ -48,6 +48,7 @@ def main():
     print('\n')
     dataset_names = DataLoader.get_all_files('Data')
     dataset_names = [name.split('/')[1].split('.')[0] for name in dataset_names]
+    undersample = True
 
     for i, (X, y) in enumerate(zip(X_list, y_list)):
         print("Dataset: {}".format(dataset_names[i]))
@@ -69,13 +70,38 @@ def main():
             X_train, X_test = X[train], X[test]
             y_train, y_test = y[train], y[test]
 
+            if undersample:
+                # Get all the targets that are not relevant i.e., y = 0
+                idx_undersample = np.where(y_train == -1)[0]
+
+                # Get all the targets that are relevant i.e., y = 1
+                idx_positive = np.where(y_train == 1)[0]
+                # Now sample from the no relevant targets
+                random_negative_sample = np.random.choice(idx_undersample, idx_positive.shape[0])
+
+                X_train_positive = X_train[idx_positive]
+
+                X_train_negative = X_train[random_negative_sample]
+
+                X_train_undersample = np.hstack((X_train_positive, X_train_negative))
+
+                y_train_positive = y_train[idx_positive]
+                y_train_negative = y_train[random_negative_sample]
+                y_train_undersample = np.hstack((y_train_positive, y_train_negative))
+
             count_vec = CountVectorizer(ngram_range=(1, 3), max_features=50000)
 
-            X_train = count_vec.fit_transform(X_train)
+            count_vec.fit(X_train)
+
+            if undersample:
+                X_train = X_train_undersample
+                y_train = y_train_undersample
+
+            X_train_undersample = count_vec.transform(X_train)
             X_test = count_vec.transform(X_test)
 
             svm = SVM()
-            svm.train(X_train, y_train)
+            svm.train(X_train_undersample, y_train)
             svm.test(X_test, y_test)
 
             f1_score = svm.metrics["F1"]
