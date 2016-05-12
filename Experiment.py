@@ -65,9 +65,6 @@ def main():
             criterion = arg
         elif opt == '--optimizer':
             optimizer = arg
-        elif opt == '--tacc':
-            if int(arg) == 1:
-                using_tacc = True
         elif opt == '--hyperopt':
             if int(arg) == 1:
                 hyperopt = True

@@ -6,17 +6,18 @@ from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.cross_validation import KFold
 
 import Experiment
+import DataLoader
 
 def get_data():
-    file_paths = Experiment.get_all_files('Data')
+    file_paths = DataLoader.get_all_files('Data')
 
     X_list, y_list = [], []
 
     for file_path in file_paths:
         data_frame = pd.read_csv(file_path)
 
-        abstract_text, abstract_labels = Experiment.extract_abstract_and_labels(data_frame)
-        mesh_terms, title = Experiment.extract_mesh_and_title(data_frame)
+        abstract_text, abstract_labels = DataLoader.extract_abstract_and_labels(data_frame)
+        mesh_terms, title = DataLoader.extract_mesh_and_title(data_frame)
 
         X = []
         y = []
@@ -37,17 +38,32 @@ def get_data():
     return X_list, y_list
 
 def main():
+
+
+
     print("Loading data...")
     X_list, y_list = get_data()
-    print("Loaded data...")
 
-    for X, y in zip(X_list, y_list):
+    print("Loaded data...")
+    print('\n')
+    dataset_names = DataLoader.get_all_files('Data')
+    dataset_names = [name.split('/')[1].split('.')[0] for name in dataset_names]
+
+    for i, (X, y) in enumerate(zip(X_list, y_list)):
+        print("Dataset: {}".format(dataset_names[i]))
+
         X = np.array(X)
         y = np.array(y)
 
         n = len(X)
 
         kf = KFold(n, random_state=1337, shuffle=True, n_folds=5)
+
+        fold_accuracies = []
+        fold_recalls = []
+        fold_precisions =[]
+        fold_aucs = []
+        fold_f1s = []
 
         for fold_idx, (train, test) in enumerate(kf):
             X_train, X_test = X[train], X[test]
@@ -62,7 +78,30 @@ def main():
             svm.train(X_train, y_train)
             svm.test(X_test, y_test)
 
-            print(svm)
+            f1_score = svm.metrics["F1"]
+            precision = svm.metrics["Precision"]
+            recall = svm.metrics["Recall"]
+            auc = svm.metrics["AUC"]
+            accuracy = svm.metrics["Accuracy"]
+
+            fold_accuracies.append(accuracy)
+            fold_precisions.append(precision)
+            fold_recalls.append(recall)
+            fold_aucs.append(auc)
+            fold_f1s.append(f1_score)
+
+        average_accuracy = np.mean(fold_accuracies)
+        average_precision = np.mean(fold_precisions)
+        average_recall = np.mean(fold_recalls)
+        average_auc = np.mean(fold_aucs)
+        average_f1 = np.mean(fold_f1s)
+
+        print("Fold Average Accuracy: {}".format(average_accuracy))
+        print("Fold Average F1: {}".format(average_f1))
+        print("Fold Average Precision: {}".format(average_precision))
+        print("Fold Average AUC: {}".format(average_auc))
+        print("Fold Average Recall: {}".format(average_recall))
+        print('\n')
 
 
 if __name__ == '__main__':

@@ -16,7 +16,7 @@ def main():
                                                       'optimizer=', 'max_words=', 'layers=',
                                                       'hyperopt=', 'experiment_name=', 'w2v_path=', 'tacc=', 'use_all_date=',
                                                       'patience=', 'filter_sizes=', 'model_type=', 'use_embedding=',
-                                                      'verbose='])
+                                                      'verbose=', 'tacc='])
     except getopt.GetoptError as error:
         print(error)
         sys.exit(2)
@@ -44,6 +44,7 @@ def main():
     patience = 20
     p = .7
     verbose = 1
+    tacc = False
 
     for opt, arg in opts:
         if opt == '--window_size':
@@ -84,9 +85,6 @@ def main():
             w2v_path = arg
         elif opt == '--word_vector_size':
             word_vector_size = int(arg)
-        elif opt == '--tacc':
-            if int(arg) == 1:
-                using_tacc = True
         elif opt == '--use_all_data':
             if int(arg) == 1:
                 use_all_date = True
@@ -96,6 +94,9 @@ def main():
         elif opt == '--undersample':
             if int(arg) == 0:
                 undersample = False
+        elif opt == '--tacc':
+            if int(arg) == 1:
+                using_tacc = True
 
         else:
             print("Option {} is not valid!".format(opt))
