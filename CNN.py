@@ -94,8 +94,10 @@ class CNN:
         early_stopping = EarlyStopping(monitor='val_loss', patience=patience, mode='auto')
 
         # verbose: 0 for no logging to stdout, 1 for progress bar logging, 2 for one log line per epoch.
-        self.model.fit(x, y, nb_epoch=n_epochs, callbacks=[early_stopping], validation_split=0.2,
+        history = self.model.fit(x, y, nb_epoch=n_epochs, callbacks=[early_stopping], validation_split=0.2,
                        verbose=verbose, batch_size=32, shuffle=True)
+
+
 
         if save_model:
             self.model.save_weights(self.model_name + '.h5', overwrite=True)

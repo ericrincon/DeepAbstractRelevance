@@ -397,11 +397,11 @@ def get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=False
                 abstracts_as_words.append(preprocessed_abstract)
                 labels.append(abstract_labels.iloc[i])
 
-        X = np.empty((len(abstracts_as_words), 1, max_words['text'], word_vector_size))
+        X = np.empty((len(abstracts_as_words), max_words['text'], word_vector_size))
 
         if use_abstract_cnn:
-            X_mesh = np.empty((len(abstract_mesh_terms), 1, max_words['mesh'], word_vector_size))
-            X_title = np.empty((len(titles), 1, max_words['title'], word_vector_size))
+            X_mesh = np.empty((len(abstract_mesh_terms), max_words['mesh'], word_vector_size))
+            X_title = np.empty((len(titles), max_words['title'], word_vector_size))
 
         y = np.zeros((len(labels), 2))
 
@@ -413,8 +413,8 @@ def get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=False
                 mesh_term_matrix = text2w2v(abstract_mesh_terms[i], max_words['mesh'], w2v, word_vector_size)
                 title_matrix = text2w2v(titles[i], max_words['title'], w2v, word_vector_size)
 
-                X_mesh[i, 0, :, :] = mesh_term_matrix
-                X_title[i, 0, :, :] = title_matrix
+                X_mesh[i, :, :] = mesh_term_matrix
+                X_title[i, :, :] = title_matrix
 
             X[i, 0, :, :] = word_matrix
 
@@ -460,7 +460,8 @@ def get_data(max_words, word_vector_size, w2v):
     labels_df = pd.DataFrame()
 
     for file in file_paths:
-        abstract_text, labels = extract_abstract_and_labels(file)
+        data_frame = pd.read_csv(file)
+        abstract_text, labels = extract_abstract_and_labels(data_frame)
 
         abstract_text_df = pd.concat((abstract_text_df, abstract_text))
         labels_df = pd.concat((labels_df, labels))
@@ -480,14 +481,15 @@ def get_data(max_words, word_vector_size, w2v):
             labels.append(labels_df.iloc[i])
 
             total_words += len(abstracts_as_words)
-    X = np.empty((len(abstracts_as_words), 1, max_words , word_vector_size))
+    X = np.empty((len(abstracts_as_words), max_words , word_vector_size))
     y = np.zeros((len(labels), 2))
 
     print(total_words/len(abstracts_as_words))
 
     for i, (abstract, label) in enumerate(zip(abstracts_as_words, labels)):
         word_matrix = text2w2v(abstract, max_words, w2v, word_vector_size)
-        X[i, 0, :, :] = word_matrix
+
+        X[i, :, :] = word_matrix
         label = label[0]
         if label == -1:
             label = 0

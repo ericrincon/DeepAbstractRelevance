@@ -24,7 +24,7 @@ def main():
 
     w2v_path = '/Users/ericrincon/PycharmProjects/Deep-PICO/wikipedia-pubmed-and-PMC-w2v.bin'
 
-    n_feature_maps = 100
+    n_feature_maps = 30
     epochs = 50
     criterion = 'categorical_crossentropy'
     optimizer = 'adam'
@@ -36,10 +36,10 @@ def main():
     max_words = 220
     word_vector_size = 200
     using_tacc = False
-    undersample = True
-    use_all_date = False
+    undersample = False
+    use_all_date = True
     patience = 20
-    p = .7
+    p = .5
     model_type = 'cnn'
 
     for opt, arg in opts:
@@ -110,9 +110,17 @@ def main():
         X_list.append(X)
         y_list.append(y)
     else:
-        X_list, y_list = DataLoader.get_data_separately1D({'text': max_words}, word_vector_size, w2v, use_abstract_cnn=False)
+        X_list, y_list = DataLoader.get_data_separately1D({'text': max_words}, word_vector_size, w2v,
+                                                          use_abstract_cnn=False)
 
     print('Loaded data...')
+
+    fold_accuracies = []
+    fold_recalls = []
+    fold_precisions =[]
+    fold_aucs = []
+    fold_f1s = []
+
 
     for X, y in zip(X_list, y_list):
         n = X.shape[0]
@@ -138,13 +146,6 @@ def main():
 
                 # Now sample from the no relevant targets
                 random_negative_sample = np.random.choice(idx_undersample, idx_positive.shape[0])
-                """
-                X_train_positive = DataLoader.slice_seq(X_train, idx_positive)
-
-                X_train_negative = DataLoader.slice_seq(X_train, random_negative_sample)
-
-                X_train = X_train_positive + X_train_negative
-                """
 
                 X_train_positive = X_train[idx_positive, :, :]
                 X_train_negative = X_train[random_negative_sample, :, :]
@@ -170,12 +171,32 @@ def main():
                       patience=patience)
             accuracy, f1_score, precision, auc, recall = cnn.test(X_test, y_test, print_output=True)
 
+            cnn.save()
+
             print("Accuracy: {}".format(accuracy))
             print("F1: {}".format(f1_score))
             print("Precision: {}".format(precision))
             print("AUC: {}".format(auc))
             print("Recall: {}".format(recall))
 
-            cnn.save()
+            fold_accuracies.append(accuracy)
+            fold_precisions.append(precision)
+            fold_recalls.append(recall)
+            fold_aucs.append(auc)
+            fold_f1s.append(f1_score)
+
+        average_accuracy = np.mean(fold_accuracies)
+        average_precision = np.mean(fold_precisions)
+        average_recall = np.mean(fold_recalls)
+        average_auc = np.mean(fold_aucs)
+        average_f1 = np.mean(fold_f1s)
+
+        print("Fold Average Accuracy: {}".format(average_accuracy))
+        print("Fold Average F1: {}".format(average_f1))
+        print("Fold Average Precision: {}".format(average_precision))
+        print("Fold Average AUC: {}".format(average_auc))
+        print("Fold Average Recall: {}".format(average_recall))
+
+
 if __name__ == '__main__':
     main()

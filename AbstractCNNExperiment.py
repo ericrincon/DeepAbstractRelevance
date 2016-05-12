@@ -38,7 +38,7 @@ def main():
     using_tacc = False
     undersample = True
     use_embedding = True
-    use_all_date = False
+    use_all_date = True
     patience = 20
     p = .7
 
@@ -128,14 +128,14 @@ def main():
 
         for fold_idx, (train, test) in enumerate(kf):
             if not use_embedding:
-                X_abstract_train = X_abstract[train, :, :, :]
-                X_titles_train = X_titles[train, :, :, :]
-                X_mesh_train = X_mesh[train, :, :, :]
+                X_abstract_train = X_abstract[train, :, :]
+                X_titles_train = X_titles[train, :, :]
+                X_mesh_train = X_mesh[train, :, :]
                 y_train = y[train, :]
 
-                X_abstract_test = X_abstract[test, :, :, :]
-                X_titles_test = X_titles[test, :, :, :]
-                X_mesh_test = X_mesh[test, :, :, :]
+                X_abstract_test = X_abstract[test, :, :]
+                X_titles_test = X_titles[test, :, :]
+                X_mesh_test = X_mesh[test, :, :]
                 y_test = y[test, :]
 
                 if undersample:
@@ -148,13 +148,13 @@ def main():
                     # Now sample from the no relevant targets
                     random_negative_sample = np.random.choice(idx_undersample, idx_positive.shape[0])
 
-                    X_abstract_train_positive = X_abstract_train[idx_positive, :, :, :]
-                    X_titles_train_positive = X_titles_train[idx_positive, :, :, :]
-                    X_mesh_train_positive = X_mesh_train[idx_positive, :, :, :]
+                    X_abstract_train_positive = X_abstract_train[idx_positive, :, :]
+                    X_titles_train_positive = X_titles_train[idx_positive, :, :]
+                    X_mesh_train_positive = X_mesh_train[idx_positive, :, :]
 
-                    X_abstract_train_negative = X_abstract_train[random_negative_sample, :, :, :]
-                    X_titles_train_negative = X_titles_train[random_negative_sample, :, :, :]
-                    X_mesh_train_negative = X_mesh_train[random_negative_sample, :, :, :]
+                    X_abstract_train_negative = X_abstract_train[random_negative_sample, :, :]
+                    X_titles_train_negative = X_titles_train[random_negative_sample, :, :]
+                    X_mesh_train_negative = X_mesh_train[random_negative_sample, :, :]
 
                     X_abstract_train = np.vstack((X_abstract_train_positive, X_abstract_train_negative))
                     X_titles_train = np.vstack((X_titles_train_positive, X_titles_train_negative))
