@@ -26,3 +26,25 @@ model_fold_1
 model.h5
 
 model.h5
+
+*.meta
+
+runs/1462571481/checkpoints/model-400
+
+SanityCheck.py
+
+runs/1462571481/checkpoints/model-500
+
+runs/1462571481/checkpoints/model-300
+
+runs/1462571481/checkpoints/model-200
+
+runs/1462571481/checkpoints/checkpoint
+
+runs/1462571481/checkpoints/model-600
+
+*.txt
+
+KerasExample.py
+
+*.h5

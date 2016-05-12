@@ -166,6 +166,7 @@ def main():
 
                     print("N y = 0: {}".format(random_negative_sample.shape[0]))
                     print("N y = 1: {}".format(idx_positive.shape[0]))
+
             elif use_embedding:
                 X_abstract_train = X_abstract[train]
                 X_titles_train = X_titles[train]
