@@ -44,7 +44,8 @@ def main():
     patience = 20
     p = .7
     verbose = 1
-    tacc = False
+    pretrain = True
+    undersample_all = True
 
     for opt, arg in opts:
         if opt == '--window_size':
@@ -111,12 +112,16 @@ def main():
     y_list = []
 
     print('Loading data...')
-    if use_all_date:
-        X_list, y_list = DataLoader.get_data(max_words, word_vector_size, w2v)
 
-        X_list.append(X)
-        y_list.append(y)
-    elif use_embedding:
+    if use_all_date or pretrain:
+        X_all, X_title_all, X_mesh_all, y_all = DataLoader.get_data(max_words, word_vector_size, w2v,
+                                                                    use_abstract_cnn=True, preprocess_text=False)
+
+        if not pretrain:
+            X_list.append([X_all, X_title_all, X_mesh_all])
+            y_list.append(y_all)
+
+    if use_embedding:
 
         X_list, y_list, embedding_list = DataLoader.get_data_as_seq(w2v, w2v_size, max_words)
 
@@ -129,6 +134,15 @@ def main():
     dataset_names = DataLoader.get_all_files('Data')
     dataset_names = [name.split('/')[1].split('.')[0] for name in dataset_names]
 
+    running_dataset_size = 0
+
+
+    ## ONLY BECAUSE I REMOVED THE FIRST DATASET DO I HAVE TO ADD TO THIS VAR
+    running_dataset_size += (X_list[0][0].shape[0] - 1)
+    X_list.pop(0)
+    y_list.pop(0)
+    dataset_names.pop(0)
+
     for i, (X, y) in enumerate(zip(X_list, y_list)):
         if use_embedding:
             embedding = embedding_list[i]
@@ -140,11 +154,21 @@ def main():
         X_abstract, X_titles, X_mesh = X
         n = X_abstract.shape[0]
         kf = KFold(n, random_state=1337, shuffle=True, n_folds=5)
+
+        if pretrain:
+            pretrain_fold_accuracies = []
+            pretrain_fold_recalls = []
+            pretrain_fold_precisions =[]
+            pretrain_fold_aucs = []
+            pretrain_fold_f1s = []
+
         fold_accuracies = []
         fold_recalls = []
         fold_precisions =[]
         fold_aucs = []
         fold_f1s = []
+
+        current_dataset_size = X_abstract.shape[0]
 
         for fold_idx, (train, test) in enumerate(kf):
             if not use_embedding:
@@ -158,35 +182,10 @@ def main():
                 X_mesh_test = X_mesh[test, :, :]
                 y_test = y[test, :]
 
+
                 if undersample:
-                    # Get all the targets that are not relevant i.e., y = 0
-                    idx_undersample = np.where(y_train[:, 0] == 1)[0]
-
-                    # Get all the targets that are relevant i.e., y = 1
-                    idx_positive = np.where(y_train[:, 1] == 1)[0]
-
-                    # Now sample from the no relevant targets
-                    random_negative_sample = np.random.choice(idx_undersample, idx_positive.shape[0])
-
-                    X_abstract_train_positive = X_abstract_train[idx_positive, :, :]
-                    X_titles_train_positive = X_titles_train[idx_positive, :, :]
-                    X_mesh_train_positive = X_mesh_train[idx_positive, :, :]
-
-                    X_abstract_train_negative = X_abstract_train[random_negative_sample, :, :]
-                    X_titles_train_negative = X_titles_train[random_negative_sample, :, :]
-                    X_mesh_train_negative = X_mesh_train[random_negative_sample, :, :]
-
-                    X_abstract_train = np.vstack((X_abstract_train_positive, X_abstract_train_negative))
-                    X_titles_train = np.vstack((X_titles_train_positive, X_titles_train_negative))
-                    X_mesh_train = np.vstack((X_mesh_train_positive, X_mesh_train_negative))
-
-                    y_train_positive = y_train[idx_positive, :]
-                    y_train_negative = y_train[random_negative_sample, :]
-                    y_train = np.vstack((y_train_positive, y_train_negative))
-
-                    print("N y = 0: {}".format(random_negative_sample.shape[0]))
-                    print("N y = 1: {}".format(idx_positive.shape[0]))
-
+                    X_abstract_train, X_titles_train, X_mesh_train, y_train =\
+                        DataLoader.undersample_acnn(X_abstract_train, X_titles_train, X_mesh_train, y_train)
             elif use_embedding:
                 X_abstract_train = X_abstract[train]
                 X_titles_train = X_titles[train]
@@ -199,42 +198,50 @@ def main():
                 y_test = y[test, :]
 
                 if undersample:
-                    print(y_train)
-                    # Get all the targets that are not relevant i.e., y = 0
-                    idx_undersample = np.where(y_train[:, 0] == 1)[0]
-
-                    # Get all the targets that are relevant i.e., y = 1
-                    idx_positive = np.where(y_train[:, 1] == 1)[0]
-                    print(np.where(y_train[:, 1] == 1))
-                    print(idx_positive)
-                    # Now sample from the no relevant targets
-                    random_negative_sample = np.random.choice(idx_undersample, idx_positive.shape[0])
-
-                    X_abstract_train_positive = X_abstract_train[idx_positive]
-                    X_titles_train_positive = X_titles_train[idx_positive]
-                    X_mesh_train_positive = X_mesh_train[idx_positive]
-
-                    X_abstract_train_negative = X_abstract_train[random_negative_sample]
-                    X_titles_train_negative = X_titles_train[random_negative_sample]
-                    X_mesh_train_negative = X_mesh_train[random_negative_sample]
-
-                    X_abstract_train = np.hstack((X_abstract_train_positive, X_abstract_train_negative))
-                    X_titles_train = np.hstack((X_titles_train_positive, X_titles_train_negative))
-                    X_mesh_train = np.hstack((X_mesh_train_positive, X_mesh_train_negative))
-
-                    y_train_positive = y_train[idx_positive, :]
-                    y_train_negative = y_train[random_negative_sample, :]
-                    y_train = np.vstack((y_train_positive, y_train_negative))
-
-                    print("N y = 0: {}".format(random_negative_sample.shape[0]))
-                    print("N y = 1: {}".format(idx_positive.shape[0]))
-
+                    X_abstract_train, X_titles_train, X_mesh_train, y_train = \
+                        DataLoader.undersample_seq(X_abstract_train, X_titles_train, X_mesh_train, y_train)
 
             temp_model_name = experiment_name + '_' + model_name + '_fold_{}'.format(fold_idx + 1)
 
             cnn = AbstractCNN(n_classes=2,  max_words=max_words, w2v_size=w2v_size, vocab_size=1000, use_embedding=use_embedding,
                               filter_sizes=filter_sizes, n_feature_maps=n_feature_maps, dense_layer_sizes=dense_sizes.copy(),
                               name=temp_model_name, activation_function=activation, dropout_p=p, embedding=embedding)
+
+            if pretrain:
+                rows_to_del = test + running_dataset_size
+
+                X_all_fold = np.delete(X_all, rows_to_del, axis=0)
+                X_title_all_fold = np.delete(X_title_all, rows_to_del, axis=0)
+                X_mesh_all_fold = np.delete(X_mesh_all,rows_to_del, axis=0)
+                y_all_fold = np.delete(y_all, rows_to_del, axis=0)
+
+                if undersample_all:
+                    X_all_fold, X_title_all_fold, X_mesh_all_fold, y_all_fold = \
+                        DataLoader.undersample_acnn(X_all_fold, X_title_all_fold, X_mesh_all_fold, y_all_fold)
+
+                cnn.train(X_all_fold, X_title_all_fold, X_mesh_all_fold, y_all_fold, n_epochs=epochs,
+                          optim_algo=optimizer, criterion=criterion, verbose=verbose, patience=patience)
+
+
+
+                accuracy, f1_score, precision, auc, recall = cnn.test(X_abstract_test, X_titles_test, X_mesh_test, y_test,
+                                                                  print_output=True)
+
+                print("Results from training on all data only")
+
+                print("Accuracy: {}".format(accuracy))
+                print("F1: {}".format(f1_score))
+                print("Precision: {}".format(precision))
+                print("AUC: {}".format(auc))
+                print("Recall: {}".format(recall))
+                print("\n")
+
+                pretrain_fold_accuracies.append(accuracy)
+                pretrain_fold_precisions.append(precision)
+                pretrain_fold_recalls.append(recall)
+                pretrain_fold_aucs.append(auc)
+                pretrain_fold_f1s.append(f1_score)
+
             cnn.train(X_abstract_train, X_titles_train, X_mesh_train, y_train, n_epochs=epochs, optim_algo=optimizer,
                       criterion=criterion, verbose=verbose, patience=patience)
             accuracy, f1_score, precision, auc, recall = cnn.test(X_abstract_test, X_titles_test, X_mesh_test, y_test,
@@ -253,6 +260,24 @@ def main():
             fold_aucs.append(auc)
             fold_f1s.append(f1_score)
 
+        running_dataset_size += (current_dataset_size - 1)
+
+        if pretrain:
+            pretrain_average_accuracy = np.mean(pretrain_fold_accuracies)
+            pretrain_average_precision = np.mean(pretrain_fold_precisions)
+            pretrain_average_recall = np.mean(pretrain_fold_recalls)
+            pretrain_average_auc = np.mean(pretrain_fold_aucs)
+            pretrain_average_f1 = np.mean(pretrain_fold_f1s)
+
+            print("\nAverage results from using all data")
+            print("Fold Average Accuracy: {}".format(pretrain_average_accuracy))
+            print("Fold Average F1: {}".format(pretrain_average_f1))
+            print("Fold Average Precision: {}".format(pretrain_average_precision))
+            print("Fold Average AUC: {}".format(pretrain_average_auc))
+            print("Fold Average Recall: {}".format(pretrain_average_recall))
+            print('\n')
+
+
         average_accuracy = np.mean(fold_accuracies)
         average_precision = np.mean(fold_precisions)
         average_recall = np.mean(fold_recalls)
@@ -265,5 +290,7 @@ def main():
         print("Fold Average AUC: {}".format(average_auc))
         print("Fold Average Recall: {}".format(average_recall))
         print('\n')
+
+        sys.exit()
 if __name__ == '__main__':
     main()

@@ -245,6 +245,7 @@ def get_data_as_seq(w2v, w2v_vector_len, max_words, use_embedding=False, acnn=Fa
     else:
         return X_list, y_list
 
+
 def build_embeddings(vocab, w2v, w2v_vector_len):
     embeddings = np.empty((len(vocab) + 1, w2v_vector_len))
 
@@ -257,6 +258,7 @@ def build_embeddings(vocab, w2v, w2v_vector_len):
         embeddings[value, :] = word_vector
 
     return embeddings
+
 
 def get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=False, preprocess_text=False):
     file_paths = get_all_files('Data')
@@ -276,6 +278,7 @@ def get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=False
 
         abstracts_as_words = []
         labels = []
+
         if use_abstract_cnn:
             abstract_mesh_terms = []
             titles = []
@@ -343,6 +346,7 @@ def get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=False
         else:
             X_list.append(X)
         y_list.append(y)
+
     average_word_per_abstract = float(total_words)/float(n_abstracts)
     average_words_per_title = float(total_words_title)/float(n_abstracts)
     average_words_per_mesh = float(total_mesh_terms)/float(n_abstracts)
@@ -369,52 +373,83 @@ def extract_mesh_and_title(data_frame):
     return mesh_terms, titles
 
 
-def get_data(max_words, word_vector_size, w2v):
+def get_data(max_words, word_vector_size, w2v, use_abstract_cnn, preprocess_text):
 
     file_paths = get_all_files('Data')
 
     abstract_text_df = pd.DataFrame()
+    mesh_df = pd.DataFrame()
+    title_df = pd.DataFrame()
     labels_df = pd.DataFrame()
 
     for file in file_paths:
         data_frame = pd.read_csv(file)
-        abstract_text, labels = extract_abstract_and_labels(data_frame)
+
+        abstract_text, abstract_labels = extract_abstract_and_labels(data_frame)
+        mesh_terms, title = extract_mesh_and_title(data_frame)
 
         abstract_text_df = pd.concat((abstract_text_df, abstract_text))
-        labels_df = pd.concat((labels_df, labels))
+        mesh_df = pd.concat((mesh_df, mesh_terms))
+        title_df = pd.concat((title_df, title))
+        labels_df = pd.concat((labels_df, abstract_labels))
 
-    abstracts_as_words = []
-    labels = []
-    total_words = 0
 
-    for i in range(abstract_text_df.shape[0]):
-        abstract = abstract_text_df.iloc[i, :][0]
+    abstract_text_df = abstract_text_df.values
+    mesh_df = mesh_df.values
+    title_df = title_df.values
+    labels_df = labels_df.values
+
+    n = abstract_text_df.shape[0]
+    X = np.empty((n, max_words['text'], word_vector_size))
+    y = np.zeros((n, 2))
+
+
+    if use_abstract_cnn:
+        X_mesh = np.empty((n,  max_words['mesh'], word_vector_size))
+        X_title = np.empty((n,  max_words['title'], word_vector_size))
+
+    for i in range(n):
+        abstract = abstract_text_df[i][0]
+        label = labels_df[i][0]
 
         if abstract == 'MISSING':
             continue
         else:
-            abstract_as_words = nltk.word_tokenize(abstract)
-            abstracts_as_words.append(abstract_as_words)
-            labels.append(labels_df.iloc[i])
+            if use_abstract_cnn:
+                mesh_term = mesh_df[i][0]
+                abstract_title = title_df[i][0]
 
-            total_words += len(abstracts_as_words)
+                if preprocess_text:
+                    mesh_term = preprocess(mesh_term, tokenize=True)
+                    abstract_title = preprocess(abstract_title, tokenize=True)
+                else:
+                    mesh_term = nltk.word_tokenize(mesh_term)
+                    abstract_title = nltk.word_tokenize(abstract_title)
 
-    X = np.empty((len(abstracts_as_words), max_words, word_vector_size))
-    y = np.zeros((len(labels), 2))
+            if preprocess_text:
+                abstract = preprocess(abstract, tokenize=True)
+            else:
+                abstract = nltk.word_tokenize(abstract)
 
-    print(total_words/len(abstracts_as_words))
+        word_matrix = text2w2v(abstract, max_words['text'], w2v, word_vector_size)
 
-    for i, (abstract, label) in enumerate(zip(abstracts_as_words, labels)):
-        word_matrix = text2w2v(abstract, max_words, w2v, word_vector_size)
+        if use_abstract_cnn:
+            mesh_term_matrix = text2w2v(mesh_term, max_words['mesh'], w2v, word_vector_size)
+            title_matrix = text2w2v(abstract_title, max_words['title'], w2v, word_vector_size)
+
+            X_mesh[i, :, :] = mesh_term_matrix
+            X_title[i, :, :] = title_matrix
 
         X[i, :, :] = word_matrix
-        label = label[0]
+
         if label == -1:
             label = 0
         y[i, label] = 1
 
-    return X, y
-
+    if use_abstract_cnn:
+        return X, X_title, X_mesh, y
+    else:
+        return X, y
 
 def text2w2v(words, max_words, w2v, word_vector_size, remove_stop_words=False):
 
@@ -473,3 +508,59 @@ def slice_seq(seq, indices):
     return [seq[index] for index in indices]
 
 
+def undersample_acnn(X_abstract_train, X_titles_train, X_mesh_train, y_train):
+    # Get all the targets that are not relevant i.e., y = 0
+    idx_undersample = np.where(y_train[:, 0] == 1)[0]
+
+    # Get all the targets that are relevant i.e., y = 1
+    idx_positive = np.where(y_train[:, 1] == 1)[0]
+
+    # Now sample from the no relevant targets
+    random_negative_sample = np.random.choice(idx_undersample, idx_positive.shape[0])
+
+    X_abstract_train_positive = X_abstract_train[idx_positive, :, :]
+    X_titles_train_positive = X_titles_train[idx_positive, :, :]
+    X_mesh_train_positive = X_mesh_train[idx_positive, :, :]
+
+    X_abstract_train_negative = X_abstract_train[random_negative_sample, :, :]
+    X_titles_train_negative = X_titles_train[random_negative_sample, :, :]
+    X_mesh_train_negative = X_mesh_train[random_negative_sample, :, :]
+
+    X_abstract_train = np.vstack((X_abstract_train_positive, X_abstract_train_negative))
+    X_titles_train = np.vstack((X_titles_train_positive, X_titles_train_negative))
+    X_mesh_train = np.vstack((X_mesh_train_positive, X_mesh_train_negative))
+
+    y_train_positive = y_train[idx_positive, :]
+    y_train_negative = y_train[random_negative_sample, :]
+    y_train = np.vstack((y_train_positive, y_train_negative))
+
+    return X_abstract_train, X_titles_train, X_mesh_train, y_train
+
+
+def undersample_seq(X_abstract_train, X_titles_train, X_mesh_train, y_train):
+    # Get all the targets that are not relevant i.e., y = 0
+    idx_undersample = np.where(y_train[:, 0] == 1)[0]
+
+    # Get all the targets that are relevant i.e., y = 1
+    idx_positive = np.where(y_train[:, 1] == 1)[0]
+
+    # Now sample from the no relevant targets
+    random_negative_sample = np.random.choice(idx_undersample, idx_positive.shape[0])
+
+    X_abstract_train_positive = X_abstract_train[idx_positive]
+    X_titles_train_positive = X_titles_train[idx_positive]
+    X_mesh_train_positive = X_mesh_train[idx_positive]
+
+    X_abstract_train_negative = X_abstract_train[random_negative_sample]
+    X_titles_train_negative = X_titles_train[random_negative_sample]
+    X_mesh_train_negative = X_mesh_train[random_negative_sample]
+
+    X_abstract_train = np.hstack((X_abstract_train_positive, X_abstract_train_negative))
+    X_titles_train = np.hstack((X_titles_train_positive, X_titles_train_negative))
+    X_mesh_train = np.hstack((X_mesh_train_positive, X_mesh_train_negative))
+
+    y_train_positive = y_train[idx_positive, :]
+    y_train_negative = y_train[random_negative_sample, :]
+    y_train = np.vstack((y_train_positive, y_train_negative))
+
+    return X_abstract_train, X_titles_train, X_mesh_train, y_train

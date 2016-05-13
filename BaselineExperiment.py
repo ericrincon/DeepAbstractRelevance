@@ -5,7 +5,6 @@ from SVM import SVM
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.cross_validation import KFold
 
-import Experiment
 import DataLoader
 
 def get_data():
