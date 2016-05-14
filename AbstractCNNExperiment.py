@@ -137,13 +137,6 @@ def main():
 
     running_dataset_size = 0
 
-
-    ## ONLY BECAUSE I REMOVED THE FIRST DATASET DO I HAVE TO ADD TO THIS VAR
-    running_dataset_size += (X_list[0][0].shape[0] - 1)
-    X_list.pop(0)
-    y_list.pop(0)
-    dataset_names.pop(0)
-
     results_file = open(experiment_name + "_results.txt", "w+")
 
     for i, (X, y) in enumerate(zip(X_list, y_list)):
@@ -305,6 +298,5 @@ def main():
         results_file.write("Fold Average Recall: {}".format(average_recall))
         results_file.write('\n')
 
-        sys.exit()
 if __name__ == '__main__':
     main()
