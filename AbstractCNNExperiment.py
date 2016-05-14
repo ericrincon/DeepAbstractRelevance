@@ -96,6 +96,8 @@ def main():
         elif opt == '--undersample':
             if int(arg) == 0:
                 undersample = False
+            elif int(arg) == 1:
+                undersample = True
         elif opt == '--tacc':
             if int(arg) == 1:
                 using_tacc = True
