@@ -3,6 +3,7 @@ import sys
 import nltk
 import numpy as np
 import DataLoader
+import seaborn as sns
 
 from CNN import AbstractCNN
 
@@ -22,7 +23,7 @@ def main():
         sys.exit(2)
 
     w2v_path = '/Users/ericrincon/PycharmProjects/Deep-PICO/wikipedia-pubmed-and-PMC-w2v.bin'
-    epochs = 50
+    epochs = 350
     criterion = 'categorical_crossentropy'
     optimizer = 'adam'
     experiment_name = 'abstractCNN'
@@ -37,15 +38,15 @@ def main():
     n_feature_maps = {'text': 30, 'mesh': 30, 'title': 30}
     word_vector_size = 200
     using_tacc = False
-    undersample = True
+    undersample = False
     use_embedding = False
     embedding = None
     use_all_date = False
-    patience = 20
-    p = .7
+    patience = 350
+    p = 0
     verbose = 1
-    pretrain = True
-    undersample_all = True
+    pretrain = False
+    undersample_all = False
 
     for opt, arg in opts:
         if opt == '--window_size':
@@ -143,6 +144,8 @@ def main():
     y_list.pop(0)
     dataset_names.pop(0)
 
+    results_file = open(experiment_name + "_results.txt", "w+")
+
     for i, (X, y) in enumerate(zip(X_list, y_list)):
         if use_embedding:
             embedding = embedding_list[i]
@@ -150,6 +153,9 @@ def main():
         model_name = dataset_names[i]
 
         print("Dataset: {}".format(model_name))
+
+        results_file.write(model_name)
+        results_file.write("Dataset: {}".format(model_name))
 
         X_abstract, X_titles, X_mesh = X
         n = X_abstract.shape[0]
@@ -202,6 +208,7 @@ def main():
                         DataLoader.undersample_seq(X_abstract_train, X_titles_train, X_mesh_train, y_train)
 
             temp_model_name = experiment_name + '_' + model_name + '_fold_{}'.format(fold_idx + 1)
+
 
             cnn = AbstractCNN(n_classes=2,  max_words=max_words, w2v_size=w2v_size, vocab_size=1000, use_embedding=use_embedding,
                               filter_sizes=filter_sizes, n_feature_maps=n_feature_maps, dense_layer_sizes=dense_sizes.copy(),
@@ -290,6 +297,13 @@ def main():
         print("Fold Average AUC: {}".format(average_auc))
         print("Fold Average Recall: {}".format(average_recall))
         print('\n')
+
+        results_file.write("Fold Average Accuracy: {}".format(average_accuracy))
+        results_file.write("Fold Average F1: {}".format(average_f1))
+        results_file.write("Fold Average Precision: {}".format(average_precision))
+        results_file.write("Fold Average AUC: {}".format(average_auc))
+        results_file.write("Fold Average Recall: {}".format(average_recall))
+        results_file.write('\n')
 
         sys.exit()
 if __name__ == '__main__':

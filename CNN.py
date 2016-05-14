@@ -177,6 +177,7 @@ class CICNN:
             for dense_layer_size in dense_layer_sizes:
                 dense_layer = Dense(dense_layer_size, W_constraint=maxnorm(2))(dense_layer_sizes[i-1])
                 dense_activation_layer = Activation(activation_function)(dense_layer)
+
                 dropout_layer = Dropout(dropout_p)(dense_activation_layer)
                 dense_layers.append(dropout_layer)
                 i += 1
