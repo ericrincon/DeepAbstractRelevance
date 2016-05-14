@@ -79,8 +79,8 @@ def main():
         elif opt == '--hyperopt':
             if int(arg) == 1:
                 hyperopt = True
-        elif opt == '--model_name':
-            model_name = arg
+        elif opt == '--experiment_name':
+            experiment_name = arg
         elif opt == '--max_words':
             max_words = int(arg)
         elif opt == '--w2v_path':
