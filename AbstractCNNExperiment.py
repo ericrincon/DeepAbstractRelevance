@@ -30,7 +30,7 @@ def main():
     w2v_size = 200
     activation = 'relu'
     dense_sizes = [400, 400]
-    max_words = {'text': 260, 'mesh': 40, 'title': 14}
+    max_words = {'text': 270, 'mesh': 50, 'title': 17}
 
     filter_sizes = {'text': [2, 3, 4, 5],
                     'mesh': [2, 3, 4, 5],
@@ -38,7 +38,7 @@ def main():
     n_feature_maps = {'text': 30, 'mesh': 30, 'title': 30}
     word_vector_size = 200
     using_tacc = False
-    undersample = False
+    undersample = True
     use_embedding = False
     embedding = None
     use_all_date = False
@@ -47,6 +47,7 @@ def main():
     verbose = 1
     pretrain = False
     undersample_all = False
+    filter_small_data = True
 
     for opt, arg in opts:
         if opt == '--window_size':
@@ -60,7 +61,7 @@ def main():
             if arg == 0:
                 wiki = False
         elif opt == '--dropout_p':
-            p = int(arg)
+            p = float(arg)
         elif opt == '--epochs':
             epochs = int(arg)
         elif opt == '--layers':
@@ -130,12 +131,16 @@ def main():
 
     else:
         X_list, y_list = DataLoader.get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=True,
-                                                        preprocess_text=False)
+                                                        preprocess_text=False, filter_small_data=filter_small_data)
 
     print('Loaded data...')
 
     dataset_names = DataLoader.get_all_files('Data')
+
     dataset_names = [name.split('/')[1].split('.')[0] for name in dataset_names]
+
+
+
 
     running_dataset_size = 0
 
@@ -293,11 +298,11 @@ def main():
         print("Fold Average Recall: {}".format(average_recall))
         print('\n')
 
-        results_file.write("Fold Average Accuracy: {}".format(average_accuracy))
-        results_file.write("Fold Average F1: {}".format(average_f1))
-        results_file.write("Fold Average Precision: {}".format(average_precision))
-        results_file.write("Fold Average AUC: {}".format(average_auc))
-        results_file.write("Fold Average Recall: {}".format(average_recall))
+        results_file.write("Fold Average Accuracy: {}\n".format(average_accuracy))
+        results_file.write("Fold Average F1: {}\n".format(average_f1))
+        results_file.write("Fold Average Precision: {}\n".format(average_precision))
+        results_file.write("Fold Average AUC: {}\n".format(average_auc))
+        results_file.write("Fold Average Recall: {}\n".format(average_recall))
         results_file.write('\n')
 
 if __name__ == '__main__':

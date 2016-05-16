@@ -260,7 +260,8 @@ def build_embeddings(vocab, w2v, w2v_vector_len):
     return embeddings
 
 
-def get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=False, preprocess_text=False):
+def get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=False, preprocess_text=False,
+                        filter_missing=True, filter_small_data=True):
     file_paths = get_all_files('Data')
     X_list, y_list = [], []
 
@@ -272,6 +273,9 @@ def get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=False
 
     for file in file_paths:
         data_frame = pd.read_csv(file)
+
+        if data_frame.shape[0] < 800:
+            continue
 
         abstract_text, abstract_labels = extract_abstract_and_labels(data_frame)
         mesh_terms, title = extract_mesh_and_title(data_frame)
@@ -286,7 +290,7 @@ def get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=False
         for i in range(abstract_text.shape[0]):
             abstract = abstract_text.iloc[i]
 
-            if abstract == 'MISSING':
+            if filter_missing and abstract == 'MISSING':
                 continue
             else:
                 if use_abstract_cnn:
@@ -300,7 +304,7 @@ def get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=False
                         mesh_term = nltk.word_tokenize(mesh_term)
                         abstract_title = nltk.word_tokenize(abstract_title)
 
-                    total_mesh_terms += len(mesh_terms)
+                    total_mesh_terms += len(mesh_term)
                     total_words_title += len(abstract_title)
 
                     abstract_mesh_terms.append(mesh_term)
