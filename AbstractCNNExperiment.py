@@ -17,7 +17,7 @@ def main():
                                                       'optimizer=', 'max_words=', 'layers=',
                                                       'hyperopt=', 'experiment_name=', 'w2v_path=', 'tacc=', 'use_all_date=',
                                                       'patience=', 'filter_sizes=', 'model_type=', 'use_embedding=',
-                                                      'verbose=', 'tacc='])
+                                                      'verbose=', 'tacc=', 'pretrain=', 'undersample_all=', 'save_model='])
     except getopt.GetoptError as error:
         print(error)
         sys.exit(2)
@@ -42,24 +42,38 @@ def main():
     use_embedding = False
     embedding = None
     use_all_date = False
-    patience = 350
+    patience = 50
     p = 0
     verbose = 1
-    pretrain = False
-    undersample_all = False
+    pretrain = True
+    undersample_all = True
     filter_small_data = True
+    save_model = False
 
     for opt, arg in opts:
-        if opt == '--window_size':
-            window_size = int(arg)
+        if opt == '--save_model':
+            if int(arg) == 0:
+                save_model = False
+            elif int(arg) ==  1:
+                save_model = True
+        elif opt == '--undersample_all':
+            if int(arg) == 0:
+                undersample_all = False
+            elif int(arg) == 1:
+                undersample_all = True
+        elif opt == '--pretrain':
+            if int(arg) == 0:
+                pretrain = False
+            elif int(arg) == 1:
+                pretrain = True
+            else:
+                print("Invalid input")
+
         elif opt == '--verbose':
             verbose = int(arg)
         elif opt == '--use_embedding':
             if int(arg) == 0:
                 use_embedding = False
-        elif opt == '--wiki':
-            if arg == 0:
-                wiki = False
         elif opt == '--dropout_p':
             p = float(arg)
         elif opt == '--epochs':
@@ -227,7 +241,8 @@ def main():
                         DataLoader.undersample_acnn(X_all_fold, X_title_all_fold, X_mesh_all_fold, y_all_fold)
 
                 cnn.train(X_all_fold, X_title_all_fold, X_mesh_all_fold, y_all_fold, n_epochs=epochs,
-                          optim_algo=optimizer, criterion=criterion, verbose=verbose, patience=patience)
+                          optim_algo=optimizer, criterion=criterion, verbose=verbose, patience=patience,
+                          save_model=save_model)
 
 
 
@@ -250,9 +265,10 @@ def main():
                 pretrain_fold_f1s.append(f1_score)
 
             cnn.train(X_abstract_train, X_titles_train, X_mesh_train, y_train, n_epochs=epochs, optim_algo=optimizer,
-                      criterion=criterion, verbose=verbose, patience=patience)
+                      criterion=criterion, verbose=verbose, patience=patience,
+                      save_model=save_model)
             accuracy, f1_score, precision, auc, recall = cnn.test(X_abstract_test, X_titles_test, X_mesh_test, y_test,
-                                                                  print_output=True)
+                                                                  print_output)
 
 
             print("Accuracy: {}".format(accuracy))
