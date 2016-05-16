@@ -45,10 +45,11 @@ def main():
     patience = 50
     p = 0
     verbose = 1
-    pretrain = True
+    pretrain = False
     undersample_all = True
     filter_small_data = True
     save_model = False
+    print_output = True
 
     for opt, arg in opts:
         if opt == '--save_model':
