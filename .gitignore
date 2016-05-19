@@ -48,3 +48,23 @@ runs/1462571481/checkpoints/model-600
 KerasExample.py
 
 *.h5
+
+GoogleNews-vectors-negative300.bin
+
+data_helpers.py
+
+Data.zip
+
+train.py
+
+model.h5
+
+text_cnn.py
+
+eval.py
+
+cnn-text-classification-tf/
+
+model.h5
+
+model.h5
