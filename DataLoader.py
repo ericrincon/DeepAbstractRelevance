@@ -556,6 +556,7 @@ def slice_seq(seq, indices):
 
 
 def undersample_acnn(X_abstract_train, X_titles_train, X_mesh_train, y_train):
+    print(X_abstract_train.shape)
     # Get all the targets that are not relevant i.e., y = 0
     idx_undersample = np.where(y_train[:, 0] == 1)[0]
 

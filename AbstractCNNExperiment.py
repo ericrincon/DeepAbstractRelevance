@@ -45,10 +45,11 @@ def main():
     patience = 50
     p = 0
     verbose = 1
-    pretrain = False
+    pretrain = True
     undersample_all = True
     filter_small_data = True
     save_model = False
+    load_data_from_scratch = False
     print_output = True
 
     for opt, arg in opts:
@@ -124,55 +125,45 @@ def main():
 
     if using_tacc:
         nltk.data.path.append('/work/03186/ericr/nltk_data/')
-    print('Loading Word2Vec...')
-    w2v = Word2Vec.load_word2vec_format(w2v_path, binary=True)
-    print('Loaded Word2Vec...')
-    X_list = []
-    y_list = []
-
     print('Loading data...')
 
-    if use_all_date or pretrain:
-        X_all, X_title_all, X_mesh_all, y_all = DataLoader.get_data(max_words, word_vector_size, w2v,
-                                                                    use_abstract_cnn=True, preprocess_text=False)
+    if load_data_from_scratch:
 
-        if not pretrain:
-            X_list.append([X_all, X_title_all, X_mesh_all])
-            y_list.append(y_all)
+        print('Loading Word2Vec...')
+        w2v = Word2Vec.load_word2vec_format(w2v_path, binary=True)
+        print('Loaded Word2Vec...')
+        X_list = []
+        y_list = []
 
-    if use_embedding:
+        if use_embedding:
 
-        X_list, y_list, embedding_list = DataLoader.get_data_as_seq(w2v, w2v_size, max_words)
+            X_list, y_list, embedding_list = DataLoader.get_data_as_seq(w2v, w2v_size, max_words)
 
+        else:
+            X_list, y_list = DataLoader.get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=True,
+                                                            preprocess_text=False, filter_small_data=filter_small_data)
     else:
-        X_list, y_list = DataLoader.get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=True,
-                                                        preprocess_text=False, filter_small_data=filter_small_data)
+        X_list, y_list = DataLoader.load_datasets_from_h5py('DataProcessed', True)
+
 
     print('Loaded data...')
-
-    dataset_names = DataLoader.get_all_files('Data')
-
-    dataset_names = [name.split('/')[1].split('.')[0] for name in dataset_names]
-
-
-
-
-    running_dataset_size = 0
+    dataset_names = DataLoader.get_all_files('DataProcessed')
+    dataset_names = [x.split('/')[-1].split('.')[0] for x in dataset_names]
 
     results_file = open(experiment_name + "_results.txt", "w+")
 
-    for i, (X, y) in enumerate(zip(X_list, y_list)):
+    for dataset_i, (X, y) in enumerate(zip(X_list, y_list)):
         if use_embedding:
-            embedding = embedding_list[i]
+            embedding = embedding_list[dataset_i]
 
-        model_name = dataset_names[i]
+        model_name = dataset_names[dataset_i]
 
         print("Dataset: {}".format(model_name))
 
         results_file.write(model_name)
         results_file.write("Dataset: {}".format(model_name))
 
-        X_abstract, X_titles, X_mesh = X
+        X_abstract, X_title, X_mesh = X['text'], X['title'], X['mesh']
         n = X_abstract.shape[0]
         kf = KFold(n, random_state=1337, shuffle=True, n_folds=5)
 
@@ -189,39 +180,7 @@ def main():
         fold_aucs = []
         fold_f1s = []
 
-        current_dataset_size = X_abstract.shape[0]
-
         for fold_idx, (train, test) in enumerate(kf):
-            if not use_embedding:
-                X_abstract_train = X_abstract[train, :, :]
-                X_titles_train = X_titles[train, :, :]
-                X_mesh_train = X_mesh[train, :, :]
-                y_train = y[train, :]
-
-                X_abstract_test = X_abstract[test, :, :]
-                X_titles_test = X_titles[test, :, :]
-                X_mesh_test = X_mesh[test, :, :]
-                y_test = y[test, :]
-
-
-                if undersample:
-                    X_abstract_train, X_titles_train, X_mesh_train, y_train =\
-                        DataLoader.undersample_acnn(X_abstract_train, X_titles_train, X_mesh_train, y_train)
-            elif use_embedding:
-                X_abstract_train = X_abstract[train]
-                X_titles_train = X_titles[train]
-                X_mesh_train = X_mesh[train]
-                y_train = y[train, :]
-
-                X_abstract_test = X_abstract[test]
-                X_titles_test = X_titles[test]
-                X_mesh_test = X_mesh[test]
-                y_test = y[test, :]
-
-                if undersample:
-                    X_abstract_train, X_titles_train, X_mesh_train, y_train = \
-                        DataLoader.undersample_seq(X_abstract_train, X_titles_train, X_mesh_train, y_train)
-
             temp_model_name = experiment_name + '_' + model_name + '_fold_{}'.format(fold_idx + 1)
 
 
@@ -230,24 +189,37 @@ def main():
                               name=temp_model_name, activation_function=activation, dropout_p=p, embedding=embedding)
 
             if pretrain:
-                rows_to_del = test + running_dataset_size
+                X_abstract_train = X_abstract[train, :, :]
+                X_title_train = X_title[train, :, :]
+                X_mesh_train = X_mesh[train, :, :]
 
-                X_all_fold = np.delete(X_all, rows_to_del, axis=0)
-                X_title_all_fold = np.delete(X_title_all, rows_to_del, axis=0)
-                X_mesh_all_fold = np.delete(X_mesh_all,rows_to_del, axis=0)
-                y_all_fold = np.delete(y_all, rows_to_del, axis=0)
+                y_train = y[train, :]
+
+                X_abstract_test = X_abstract[test, :, :]
+                X_title_test = X_title[test, :, :]
+                X_mesh_test = X_mesh[test, :, :]
+
+                y_test = y[test, :]
+
+                for i, (x, y) in enumerate(zip(X_list, y_list)):
+                    if not i == dataset_i:
+                        X_abstract_train = np.vstack((X_abstract_train, x['text'][()]))
+                        X_title_train = np.vstack((X_title_train, x['title'][()]))
+                        X_mesh_train = np.vstack((X_mesh_train, x['mesh'][()]))
+                        y_train = np.vstack((y_train, y[()]))
 
                 if undersample_all:
-                    X_all_fold, X_title_all_fold, X_mesh_all_fold, y_all_fold = \
-                        DataLoader.undersample_acnn(X_all_fold, X_title_all_fold, X_mesh_all_fold, y_all_fold)
+                    X_abstract_train, X_title_train, X_mesh_train, y_train = \
+                        DataLoader.undersample_acnn(X_abstract_train, X_title_train, X_mesh_train, y_train)
 
-                cnn.train(X_all_fold, X_title_all_fold, X_mesh_all_fold, y_all_fold, n_epochs=epochs,
+                print(X_abstract_train.shape)
+
+                cnn.train(X_abstract_train, X_title_train, X_mesh_train, y_train, n_epochs=epochs,
                           optim_algo=optimizer, criterion=criterion, verbose=verbose, patience=patience,
                           save_model=save_model)
 
 
-
-                accuracy, f1_score, precision, auc, recall = cnn.test(X_abstract_test, X_titles_test, X_mesh_test, y_test,
+                accuracy, f1_score, precision, auc, recall = cnn.test(X_abstract_test, X_title_test, X_mesh_test, y_test,
                                                                   print_output=True)
 
                 print("Results from training on all data only")
@@ -265,7 +237,37 @@ def main():
                 pretrain_fold_aucs.append(auc)
                 pretrain_fold_f1s.append(f1_score)
 
-            cnn.train(X_abstract_train, X_titles_train, X_mesh_train, y_train, n_epochs=epochs, optim_algo=optimizer,
+            if not use_embedding:
+                X_abstract_train = X_abstract[train, :, :]
+                X_titles_train = X_title[train, :, :]
+                X_mesh_train = X_mesh[train, :, :]
+                y_train = y[train, :]
+
+                X_abstract_test = X_abstract[test, :, :]
+                X_titles_test = X_title[test, :, :]
+                X_mesh_test = X_mesh[test, :, :]
+                y_test = y[test, :]
+
+
+                if undersample:
+                    X_abstract_train, X_titles_train, X_mesh_train, y_train =\
+                        DataLoader.undersample_acnn(X_abstract_train, X_titles_train, X_mesh_train, y_train)
+            elif use_embedding:
+                X_abstract_train = X_abstract[train]
+                X_titles_train = X_title[train]
+                X_mesh_train = X_mesh[train]
+                y_train = y[train, :]
+
+                X_abstract_test = X_abstract[test]
+                X_titles_test = X_title[test]
+                X_mesh_test = X_mesh[test]
+                y_test = y[test, :]
+
+                if undersample:
+                    X_abstract_train, X_titles_train, X_mesh_train, y_train = \
+                        DataLoader.undersample_seq(X_abstract_train, X_titles_train, X_mesh_train, y_train)
+
+            cnn.train(X_abstract_train, X_title_train, X_mesh_train, y_train, n_epochs=epochs, optim_algo=optimizer,
                       criterion=criterion, verbose=verbose, patience=patience,
                       save_model=save_model)
             accuracy, f1_score, precision, auc, recall = cnn.test(X_abstract_test, X_titles_test, X_mesh_test, y_test,
@@ -283,8 +285,6 @@ def main():
             fold_recalls.append(recall)
             fold_aucs.append(auc)
             fold_f1s.append(f1_score)
-
-        running_dataset_size += (current_dataset_size - 1)
 
         if pretrain:
             pretrain_average_accuracy = np.mean(pretrain_fold_accuracies)
