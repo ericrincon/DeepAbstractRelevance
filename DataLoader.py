@@ -1,11 +1,12 @@
 import numpy as np
 import pandas as pd
 import nltk
-
+import h5py
 import os
 
 from nltk.corpus import stopwords
 from sklearn.feature_extraction.text import CountVectorizer
+
 
 def get_all_files(path):
     file_paths = []
@@ -32,6 +33,33 @@ def df2vocab(data_frames, use_lowercase=False):
     cv.fit(text)
 
     return cv.vocabulary_
+
+def load_dataset_from_h5py(path, load_mesh_text, load_as_np):
+    data_frame = h5py.File(path, 'r')
+    X = {}
+
+    X_abstract = data_frame['X_abstract']
+    y = data_frame['y']
+
+    if load_mesh_text:
+        X_title = data_frame['X_title']
+        X = data_frame['X_mesh']
+
+    return X, y
+
+
+def load_datasets_from_h5py(path, load_mesh_text=True, load_as_np=False):
+    files = get_all_files(path)
+    X_list = []
+    y_list = []
+
+    for file in files:
+        X, y = load_dataset_from_h5py(file, load_mesh_text, load_as_np)
+
+        X_list.append(X)
+        y_list.append(y)
+
+    return X_list, y_list
 
 
 def texts2seq(texts, sizes, vocab=None, w2v=None, w2v_size=200):
@@ -260,7 +288,7 @@ def build_embeddings(vocab, w2v, w2v_vector_len):
     return embeddings
 
 
-def get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=False, preprocess_text=False,
+def  get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=False, preprocess_text=False,
                         filter_missing=True, filter_small_data=True):
     file_paths = get_all_files('Data')
     X_list, y_list = [], []
@@ -270,9 +298,11 @@ def get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=False
     total_mesh_terms = 0.0
 
     n_abstracts = 0.0
+    names = []
 
     for file in file_paths:
         data_frame = pd.read_csv(file)
+        names.append(file.split('/')[1].split('.')[0])
 
         if data_frame.shape[0] < 800:
             continue
@@ -359,7 +389,7 @@ def get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=False
     print('Average words per title: {}'.format(average_words_per_title))
     print('Average words per mesh terms: {}'.format(average_words_per_mesh))
 
-    return X_list, y_list
+    return X_list, y_list, names
 
 
 def extract_abstract_and_labels(data_frame):

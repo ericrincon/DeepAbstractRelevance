@@ -68,3 +68,5 @@ cnn-text-classification-tf/
 model.h5
 
 model.h5
+
+*.h5
