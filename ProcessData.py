@@ -19,9 +19,7 @@ def main():
     word_vector_size = 200
     filter_small_data = True
 
-    print('Loading word2vec...')
-    w2v = Word2Vec.load_word2vec_format(w2v_path, binary=True)
-    print('Loaded word2vec...')
+
 
     for opt, arg in opts:
         if opt == '--max_words_abstract':
@@ -35,6 +33,10 @@ def main():
         elif opt == '--w2v_path':
             w2v_path = arg
 
+    print('Loading word2vec...')
+    w2v = Word2Vec.load_word2vec_format(w2v_path, binary=True)
+    print('Loaded word2vec...')
+    
     X_list, y_list, data_names = DataLoader.get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=True,
                                                         preprocess_text=False, filter_small_data=filter_small_data)
 
