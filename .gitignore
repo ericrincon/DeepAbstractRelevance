@@ -70,3 +70,5 @@ model.h5
 model.h5
 
 *.h5
+
+*.hdf5

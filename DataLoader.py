@@ -34,27 +34,40 @@ def df2vocab(data_frames, use_lowercase=False):
 
     return cv.vocabulary_
 
-def load_dataset_from_h5py(path, load_mesh_text, load_as_np):
+def load_dataset_from_h5py(path, load_mesh_title, load_as_np):
     data_frame = h5py.File(path, 'r')
     X = {}
 
     X_abstract = data_frame['X_abstract']
     y = data_frame['y']
 
-    if load_mesh_text:
+    if load_mesh_title:
         X_title = data_frame['X_title']
-        X = data_frame['X_mesh']
+        X_mesh = data_frame['X_mesh']
+
+    if load_as_np:
+        X['text'] = X_abstract[()]
+
+        if load_mesh_title:
+            X['title'] = X_title[()]
+            X['mesh'] = X_mesh[()]
+    else:
+        X['text'] = X_abstract
+
+        if load_mesh_title:
+            X['title'] = X_title
+            X['mesh'] = X_mesh
 
     return X, y
 
 
-def load_datasets_from_h5py(path, load_mesh_text=True, load_as_np=False):
+def load_datasets_from_h5py(path, load_mesh_title=True, load_as_np=False):
     files = get_all_files(path)
     X_list = []
     y_list = []
 
     for file in files:
-        X, y = load_dataset_from_h5py(file, load_mesh_text, load_as_np)
+        X, y = load_dataset_from_h5py(file, load_mesh_title, load_as_np)
 
         X_list.append(X)
         y_list.append(y)
