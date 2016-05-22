@@ -19,7 +19,8 @@ def main():
                                                       'optimizer=', 'max_words=', 'layers=',
                                                       'hyperopt=', 'experiment_name=', 'w2v_path=', 'tacc=', 'use_all_date=',
                                                       'patience=', 'filter_sizes=', 'model_type=', 'use_embedding=',
-                                                      'verbose=', 'tacc=', 'pretrain=', 'undersample_all=', 'save_model='])
+                                                      'verbose=', 'tacc=', 'pretrain=', 'undersample_all=', 'save_model=',
+                                                      'transfer_learning='])
     except getopt.GetoptError as error:
         print(error)
         sys.exit(2)
@@ -61,6 +62,11 @@ def main():
                 save_model = False
             elif int(arg) ==  1:
                 save_model = True
+        elif opt == '--transfer_learning':
+            if int(arg) == 1:
+                transfer_learning = True
+            elif int(arg) == 0:
+                transfer_learning = False
         elif opt == '--undersample_all':
             if int(arg) == 0:
                 undersample_all = False
