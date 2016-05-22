@@ -7,6 +7,8 @@ import seaborn as sns
 
 from CNN import AbstractCNN
 
+from SVM import SVM
+
 from sklearn.cross_validation import KFold
 from gensim.models import Word2Vec
 
@@ -23,7 +25,7 @@ def main():
         sys.exit(2)
 
     w2v_path = '/Users/ericrincon/PycharmProjects/Deep-PICO/wikipedia-pubmed-and-PMC-w2v.bin'
-    epochs = 350
+    epochs = 1
     criterion = 'categorical_crossentropy'
     optimizer = 'adam'
     experiment_name = 'abstractCNN'
@@ -45,12 +47,13 @@ def main():
     patience = 50
     p = 0
     verbose = 1
-    pretrain = True
+    pretrain = False
     undersample_all = True
     filter_small_data = True
     save_model = False
     load_data_from_scratch = False
     print_output = True
+    transfer_learning = True
 
     for opt, arg in opts:
         if opt == '--save_model':
@@ -140,8 +143,10 @@ def main():
             X_list, y_list, embedding_list = DataLoader.get_data_as_seq(w2v, w2v_size, max_words)
 
         else:
-            X_list, y_list = DataLoader.get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=True,
-                                                            preprocess_text=False, filter_small_data=filter_small_data)
+            X_list, y_list = DataLoader.get_data_separately(max_words, word_vector_size,
+                                                            w2v, use_abstract_cnn=True,
+                                                            preprocess_text=False,
+                                                            filter_small_data=filter_small_data)
     else:
         X_list, y_list = DataLoader.load_datasets_from_h5py('DataProcessed', True)
 
@@ -173,6 +178,13 @@ def main():
             pretrain_fold_precisions =[]
             pretrain_fold_aucs = []
             pretrain_fold_f1s = []
+
+        if transfer_learning:
+            svm_fold_accuracies = []
+            svm_fold_recalls = []
+            svm_fold_precisions =[]
+            svm_fold_aucs = []
+            svm_fold_f1s = []
 
         fold_accuracies = []
         fold_recalls = []
@@ -272,8 +284,27 @@ def main():
                       save_model=save_model)
             accuracy, f1_score, precision, auc, recall = cnn.test(X_abstract_test, X_titles_test, X_mesh_test, y_test,
                                                                   print_output)
+            if transfer_learning:
+                svm = SVM()
 
+                # Transfer weights
+                X_transfer_train = cnn.output_learned_features([X_abstract_train, X_title_train, X_mesh_train])
+                X_transfer_test = cnn.output_learned_features([X_abstract_test, X_titles_test, X_mesh_test])
 
+                svm.train(X_transfer_train, DataLoader.onehot2list(y_train))
+                svm.test(X_transfer_test, DataLoader.onehot2list(y_test))
+
+                print("\nSVM results")
+                print(svm)
+                print('\n')
+
+                svm_fold_accuracies.append(svm.metrics['Accuracy'])
+                svm_fold_precisions.append(svm.metrics['Precision'])
+                svm_fold_aucs.append(svm.metrics['AUC'])
+                svm_fold_recalls.append(svm.metrics['Recall'])
+                svm_fold_f1s.append(svm.metrics['F1'])
+
+            print('CNN results')
             print("Accuracy: {}".format(accuracy))
             print("F1: {}".format(f1_score))
             print("Precision: {}".format(precision))
@@ -285,6 +316,8 @@ def main():
             fold_recalls.append(recall)
             fold_aucs.append(auc)
             fold_f1s.append(f1_score)
+
+
 
         if pretrain:
             pretrain_average_accuracy = np.mean(pretrain_fold_accuracies)
@@ -302,12 +335,15 @@ def main():
             print('\n')
 
 
+
         average_accuracy = np.mean(fold_accuracies)
         average_precision = np.mean(fold_precisions)
         average_recall = np.mean(fold_recalls)
         average_auc = np.mean(fold_aucs)
         average_f1 = np.mean(fold_f1s)
 
+
+        print('CNN Results')
         print("Fold Average Accuracy: {}".format(average_accuracy))
         print("Fold Average F1: {}".format(average_f1))
         print("Fold Average Precision: {}".format(average_precision))
@@ -315,12 +351,36 @@ def main():
         print("Fold Average Recall: {}".format(average_recall))
         print('\n')
 
+        results_file.write("CNN results")
         results_file.write("Fold Average Accuracy: {}\n".format(average_accuracy))
         results_file.write("Fold Average F1: {}\n".format(average_f1))
         results_file.write("Fold Average Precision: {}\n".format(average_precision))
         results_file.write("Fold Average AUC: {}\n".format(average_auc))
         results_file.write("Fold Average Recall: {}\n".format(average_recall))
         results_file.write('\n')
+
+        if transfer_learning:
+            average_accuracy = np.mean(svm_fold_accuracies)
+            average_precision = np.mean(svm_fold_precisions)
+            average_recall = np.mean(svm_fold_recalls)
+            average_auc = np.mean(svm_fold_aucs)
+            average_f1 = np.mean(svm_fold_f1s)
+
+            print("SVM with cnn features")
+            print("Fold Average Accuracy: {}".format(average_accuracy))
+            print("Fold Average F1: {}".format(average_f1))
+            print("Fold Average Precision: {}".format(average_precision))
+            print("Fold Average AUC: {}".format(average_auc))
+            print("Fold Average Recall: {}".format(average_recall))
+            print('\n')
+
+            results_file.write("SVM with cnn features\n")
+            results_file.write("Fold Average Accuracy: {}\n".format(average_accuracy))
+            results_file.write("Fold Average F1: {}\n".format(average_f1))
+            results_file.write("Fold Average Precision: {}\n".format(average_precision))
+            results_file.write("Fold Average AUC: {}\n".format(average_auc))
+            results_file.write("Fold Average Recall: {}\n".format(average_recall))
+            results_file.write('\n')
 
 if __name__ == '__main__':
     main()

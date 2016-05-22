@@ -612,3 +612,6 @@ def undersample_seq(X_abstract_train, X_titles_train, X_mesh_train, y_train):
     y_train = np.vstack((y_train_positive, y_train_negative))
 
     return X_abstract_train, X_titles_train, X_mesh_train, y_train
+
+def onehot2list(y):
+    return np.argmax(y, axis=1)

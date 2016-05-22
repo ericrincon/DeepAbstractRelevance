@@ -1,6 +1,6 @@
-from keras.layers import Input,Embedding, merge, Dense
+from keras.layers import Input, Embedding, merge, Dense
 
-from keras.models import Model
+from keras.models import Model, Sequential
 
 from keras.layers.convolutional import Convolution2D, MaxPooling2D, Convolution1D, MaxPooling1D
 from keras.layers.core import Flatten, Activation, Dropout
@@ -11,9 +11,10 @@ from keras.layers.advanced_activations import ELU
 from keras.callbacks import EarlyStopping
 
 from keras.constraints import maxnorm
-
+from keras import backend as K
 import sklearn.metrics as metrics
 import numpy as np
+import theano
 
 
 # Implementation of Convolutional Neural Networks for Sentence Classification
@@ -24,6 +25,7 @@ class CNN:
         self.model = self.build_model(n_classes, max_words, w2v_size, vocab_size, use_embedding, filter_sizes,
                                       n_filters, dense_layer_sizes, activation_function, dropout_p)
         self.model_name = name
+        self.conv_layer = None
 
     def build_model(self, n_classes, max_words, w2v_size, vocab_size, use_embedding, filter_sizes, n_filters,
                     dense_layer_sizes, activation_function, dropout_p):
@@ -260,7 +262,8 @@ class AbstractCNN:
                             'title': [2, 3, 5]}
         if n_feature_maps is None:
             n_feature_maps = {'text': 100, 'mesh': 50, 'title': 50}
-
+        self.conv_output = None
+        self.input = None
         self.model = self.build_model(n_classes, max_words, w2v_size, vocab_size, use_embedding, filter_sizes,
                                       n_feature_maps, dense_layer_sizes, activation_function, dropout_p,
                                       embedding=embedding)
@@ -316,8 +319,11 @@ class AbstractCNN:
         mesh_node, mesh_input = self.build_conv_node(n_feature_maps['mesh'], max_words['mesh'], w2v_size,
                                                      activation_function, filter_sizes['mesh'], vocab_size,
                                                      use_embedding, 'mesh_terms_input', embedding=embedding)
+        self.input = [abstract_input, title_input, mesh_input]
 
         merge_layer = merge([abstract_node, title_node, mesh_node], mode='concat')
+
+        self.conv_output = merge_layer
 
         dense_layers = []
         first_dense_layer = Dense(dense_layer_sizes.pop(0))(merge_layer)
@@ -337,7 +343,7 @@ class AbstractCNN:
         softmax_dense_layer = Dense(n_classes)(dense_layers[-1])
         softmax_layer = Activation('softmax')(softmax_dense_layer)
 
-        model = Model(input=[abstract_input, title_input, mesh_input], output=softmax_layer)
+        model = Model(input=self.input, output=softmax_layer)
 
         return model
 
@@ -396,6 +402,14 @@ class AbstractCNN:
 
     def save(self):
         self.model.save_weights(self.model_name)
+
+    def output_learned_features(self, X):
+        assert (self.conv_output and self.input) is not None, 'Build the model first!'
+
+        conv_layer_model = Model(input=self.input, output=self.conv_output)
+        learned_features = conv_layer_model.predict(X)
+
+        return learned_features
 
 
 # Implementation of Modelling, Visualising and Summarising Documents with a Single Convolutional Neural Network
@@ -544,4 +558,5 @@ class DCNN:
 
     def save(self):
         self.model.save_weights(self.model_name)
+
 
