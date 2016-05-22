@@ -201,12 +201,12 @@ def main():
 
                 y_test = y[test, :]
 
-                for i, (x, y) in enumerate(zip(X_list, y_list)):
+                for i, (_x, _y) in enumerate(zip(X_list, y_list)):
                     if not i == dataset_i:
-                        X_abstract_train = np.vstack((X_abstract_train, x['text'][()]))
-                        X_title_train = np.vstack((X_title_train, x['title'][()]))
-                        X_mesh_train = np.vstack((X_mesh_train, x['mesh'][()]))
-                        y_train = np.vstack((y_train, y[()]))
+                        X_abstract_train = np.vstack((X_abstract_train, _x['text'][()]))
+                        X_title_train = np.vstack((X_title_train, _x['title'][()]))
+                        X_mesh_train = np.vstack((X_mesh_train, _x['mesh'][()]))
+                        y_train = np.vstack((y_train, _y[()]))
 
                 if undersample_all:
                     X_abstract_train, X_title_train, X_mesh_train, y_train = \
@@ -239,7 +239,7 @@ def main():
 
             if not use_embedding:
                 X_abstract_train = X_abstract[train, :, :]
-                X_titles_train = X_title[train, :, :]
+                X_title_train = X_title[train, :, :]
                 X_mesh_train = X_mesh[train, :, :]
                 y_train = y[train, :]
 
@@ -250,11 +250,11 @@ def main():
 
 
                 if undersample:
-                    X_abstract_train, X_titles_train, X_mesh_train, y_train =\
-                        DataLoader.undersample_acnn(X_abstract_train, X_titles_train, X_mesh_train, y_train)
+                    X_abstract_train, X_title_train, X_mesh_train, y_train =\
+                        DataLoader.undersample_acnn(X_abstract_train, X_title_train, X_mesh_train, y_train)
             elif use_embedding:
                 X_abstract_train = X_abstract[train]
-                X_titles_train = X_title[train]
+                X_title_train = X_title[train]
                 X_mesh_train = X_mesh[train]
                 y_train = y[train, :]
 
@@ -264,8 +264,8 @@ def main():
                 y_test = y[test, :]
 
                 if undersample:
-                    X_abstract_train, X_titles_train, X_mesh_train, y_train = \
-                        DataLoader.undersample_seq(X_abstract_train, X_titles_train, X_mesh_train, y_train)
+                    X_abstract_train, X_title_train, X_mesh_train, y_train = \
+                        DataLoader.undersample_seq(X_abstract_train, X_title_train, X_mesh_train, y_train)
 
             cnn.train(X_abstract_train, X_title_train, X_mesh_train, y_train, n_epochs=epochs, optim_algo=optimizer,
                       criterion=criterion, verbose=verbose, patience=patience,
