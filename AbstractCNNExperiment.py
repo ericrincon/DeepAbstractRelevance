@@ -26,7 +26,7 @@ def main():
         sys.exit(2)
 
     w2v_path = '/Users/ericrincon/PycharmProjects/Deep-PICO/wikipedia-pubmed-and-PMC-w2v.bin'
-    epochs = 1
+    epochs = 350
     criterion = 'categorical_crossentropy'
     optimizer = 'adam'
     experiment_name = 'abstractCNN'
