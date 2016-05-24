@@ -19,16 +19,15 @@ def main():
         opts, args = getopt.getopt(sys.argv[1:], '', ['n_feature_maps=', 'epochs=', 'max_words=', 'dropout_p=',
                                                       'undersample=', 'n_feature_maps=', 'criterion=',
                                                       'optimizer=', 'max_words=', 'layers=',
-                                                      'hyperopt=', 'experiment_name=', 'w2v_path=', 'tacc=', 'use_all_date=',
-                                                      'patience=', 'filter_sizes=', 'model_type=', 'use_embedding=',
-                                                      'verbose=', 'tacc=', 'pretrain=', 'undersample_all=', 'save_model=',
-                                                      'transfer_learning='])
+                                                      'hyperopt=', 'experiment_name=', 'w2v_path=', 'tacc=',
+                                                      'use_all_date=', 'tacc=', 'pretrain=', 'undersample_all=',
+                                                      'save_model=', 'transfer_learning='])
     except getopt.GetoptError as error:
         print(error)
         sys.exit(2)
 
     w2v_path = '/Users/ericrincon/PycharmProjects/Deep-PICO/wikipedia-pubmed-and-PMC-w2v.bin'
-    epochs = 10
+    epochs = 50
     criterion = 'categorical_crossentropy'
     optimizer = 'adam'
     experiment_name = 'abstractCNN'
@@ -49,9 +48,8 @@ def main():
     use_all_date = False
     patience = 50
     p = .5
-    verbose = 1
-    pretrain = False
-    undersample_all = True
+    verbose = 0
+    pretrain = True
     filter_small_data = True
     save_model = False
     load_data_from_scratch = False
@@ -227,11 +225,6 @@ def main():
                         X_title_train = np.vstack((X_title_train, _x['title'][()]))
                         X_mesh_train = np.vstack((X_mesh_train, _x['mesh'][()]))
                         y_train = np.vstack((y_train, _y[()]))
-
-                if undersample_all:
-                    X_abstract_train, X_title_train, X_mesh_train, y_train = \
-                        DataLoader.undersample_acnn(X_abstract_train, X_title_train, X_mesh_train, y_train)
-
                 print(X_abstract_train.shape)
 
                 cnn.train(X_abstract_train, X_title_train, X_mesh_train, y_train, n_epochs=epochs,
