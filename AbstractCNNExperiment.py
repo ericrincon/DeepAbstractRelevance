@@ -6,6 +6,8 @@ import DataLoader
 import seaborn as sns
 
 from CNN import AbstractCNN
+from RNN import lstm
+
 
 from SVM import SVM
 
@@ -26,7 +28,7 @@ def main():
         sys.exit(2)
 
     w2v_path = '/Users/ericrincon/PycharmProjects/Deep-PICO/wikipedia-pubmed-and-PMC-w2v.bin'
-    epochs = 350
+    epochs = 10
     criterion = 'categorical_crossentropy'
     optimizer = 'adam'
     experiment_name = 'abstractCNN'
@@ -38,15 +40,15 @@ def main():
     filter_sizes = {'text': [2, 3, 4, 5],
                     'mesh': [2, 3, 4, 5],
                     'title': [2, 3, 4, 5]}
-    n_feature_maps = {'text': 30, 'mesh': 30, 'title': 30}
+    n_feature_maps = {'text': 100, 'mesh': 50, 'title': 50}
     word_vector_size = 200
     using_tacc = False
-    undersample = True
+    undersample = False
     use_embedding = False
     embedding = None
     use_all_date = False
     patience = 50
-    p = 0
+    p = .5
     verbose = 1
     pretrain = False
     undersample_all = True
@@ -54,7 +56,7 @@ def main():
     save_model = False
     load_data_from_scratch = False
     print_output = True
-    transfer_learning = True
+    transfer_learning = False
 
     for opt, arg in opts:
         if opt == '--save_model':
@@ -266,10 +268,6 @@ def main():
                 X_mesh_test = X_mesh[test, :, :]
                 y_test = y[test, :]
 
-
-                if undersample:
-                    X_abstract_train, X_title_train, X_mesh_train, y_train =\
-                        DataLoader.undersample_acnn(X_abstract_train, X_title_train, X_mesh_train, y_train)
             elif use_embedding:
                 X_abstract_train = X_abstract[train]
                 X_title_train = X_title[train]
@@ -290,6 +288,7 @@ def main():
                       save_model=save_model)
             accuracy, f1_score, precision, auc, recall = cnn.test(X_abstract_test, X_titles_test, X_mesh_test, y_test,
                                                                   print_output)
+
             if transfer_learning:
                 svm = SVM()
 
@@ -357,7 +356,7 @@ def main():
         print("Fold Average Recall: {}".format(average_recall))
         print('\n')
 
-        results_file.write("CNN results")
+        results_file.write("CNN results\n")
         results_file.write("Fold Average Accuracy: {}\n".format(average_accuracy))
         results_file.write("Fold Average F1: {}\n".format(average_f1))
         results_file.write("Fold Average Precision: {}\n".format(average_precision))

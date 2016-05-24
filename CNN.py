@@ -12,10 +12,13 @@ from keras.callbacks import EarlyStopping
 
 from keras.constraints import maxnorm
 from keras import backend as K
+
+from BatchGenerator import ImbalancedBBG
+
 import sklearn.metrics as metrics
 import numpy as np
 import theano
-
+import DataLoader as dl
 
 # Implementation of Convolutional Neural Networks for Sentence Classification
 # Paper: http://arxiv.org/abs/1408.5882
@@ -92,7 +95,7 @@ class CNN:
         early_stopping = EarlyStopping(monitor='val_loss', patience=patience, mode='auto')
 
         # verbose: 0 for no logging to stdout, 1 for progress bar logging, 2 for one log line per epoch.
-        history = self.model.fit(x, y, nb_epoch=n_epochs, callbacks=[early_stopping], validation_split=0.2,
+        history = self.model.fit(x, y, nb_epoch=n_epochs, callbacks=[early_stopping], validation_split=0.3,
                        verbose=verbose, batch_size=32, shuffle=True)
 
 
@@ -347,8 +350,10 @@ class AbstractCNN:
 
         return model
 
-    def train(self, X_abstract, X_titles, X_mesh, y, n_epochs, optim_algo='adam', criterion='categorical_crossentropy',
-              save_model=True, verbose=2, plot=True, tensorBoard_path='', patience=20, use_tensorboard=False):
+    def train(self, X_abstract, X_titles, X_mesh, y, n_epochs, optim_algo='adam',
+              criterion='categorical_crossentropy', save_model=True, verbose=2,
+              plot=True, tensorBoard_path='', patience=20, use_tensorboard=False,
+              batch_size=64):
 
         if optim_algo == 'adam':
             optim_algo = Adam()
@@ -359,15 +364,50 @@ class AbstractCNN:
 
         self.model.compile(optimizer=optim_algo, loss=criterion)
 
-        callbacks = []
+        batch_generator = ImbalancedBBG([X_abstract, X_titles, X_mesh], y, batch_size, pos_p=.8)
 
-        early_stopping = EarlyStopping(monitor='val_loss', patience=patience, mode='auto')
 
-        callbacks.append(early_stopping)
+        loss_train_history = []
+        loss_val_history = []
+        batch_history = {'f1': [], 'recall': [], 'precision': []}
 
-        # verbose: 0 for no logging to stdout, 1 for progress bar logging, 2 for one log line per epoch.
-        self.model.fit([X_abstract, X_titles, X_mesh], y, nb_epoch=n_epochs, callbacks=callbacks, validation_split=0.2,
-                       verbose=verbose, batch_size=32, shuffle=True)
+        for epoch in range(1, n_epochs + 1):
+            batch_f1_history = []
+            batch_precision_history = []
+            batch_recall_history = []
+
+            for X, y in batch_generator.next_batch():
+                history = self.model.fit(X, y, nb_epoch=1, batch_size=batch_size,
+                                         validation_split=0.2, verbose=0)
+
+                val_loss, loss = history.history['val_loss'][0], history.history['loss'][0]
+
+                loss_train_history.append(loss)
+                loss_val_history.append(val_loss)
+
+                truth = self.model.validation_data[3]
+                truth = dl.onehot2list(truth)
+                batch_prediction = self.predict_classes(self.model.validation_data[0:3])
+
+                batch_f1 = metrics.f1_score(truth, batch_prediction)
+                batch_recall = metrics.recall_score(truth, batch_prediction)
+                batch_precision = metrics.precision_score(truth, batch_prediction)
+
+                batch_f1_history.append(batch_f1)
+                batch_recall_history.append(batch_recall)
+                batch_precision_history.append(batch_precision)
+
+            batch_history['f1'].append(batch_f1_history)
+            batch_history['recall'].append(batch_recall_history)
+            batch_history['precision'].append(batch_precision_history)
+
+            print('Epoch: {} | Train loss: {} | Valid loss: {}'.format(epoch, loss, val_loss))
+            print("Epoch Metrics | F1: {} | Recall {} | Precision: {}".format(np.mean(batch_history['f1'][epoch - 1]),
+                                                                              np.mean(batch_history['recall'][epoch - 1]),
+                                                                              np.mean(batch_history['precision'][epoch - 1])))
+            a_max = np.argmax(batch_history['f1'][epoch - 1])
+            print("Best F1 at Epoch {} Minibatch {}: {}\n".format(epoch, a_max, batch_history['f1'][epoch-1][a_max]))
+
 
         if save_model:
             self.model.save_weights(self.model_name + '.h5', overwrite=True)
@@ -528,9 +568,9 @@ class DCNN:
         if save_model:
             self.model.save_weights(self.model_name + '.h5', overwrite=True)
 
-    def test(self, X_abstract, X_titles, X_mesh, y, print_output=False):
+    def test(self, X, y, print_output=False):
         truth = []
-        predictions = self.predict_classes([X_abstract, X_titles, X_mesh])
+        predictions = self.predict_classes(X)
 
         for i in range(y.shape[0]):
             if y[i, 1] == 1:
@@ -550,8 +590,8 @@ class DCNN:
 
         return accuracy, f1_score, precision, auc, recall
 
-    def predict_classes(self, x):
-        predictions = self.model.predict(x)
+    def predict_classes(self, X):
+        predictions = self.model.predict(X)
         predicted_classes = np.argmax(predictions, axis=1)
 
         return predicted_classes
