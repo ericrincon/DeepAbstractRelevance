@@ -12,7 +12,7 @@ from keras.callbacks import EarlyStopping
 
 from keras.constraints import maxnorm
 
-from BatchGenerator import ImbalancedBBG, StanderedBG, DomainBG
+from BatchGenerator import ImbalancedBBG, StanderedBG, DomainBG, StanderedDomainBG
 
 import sklearn.metrics as metrics
 import numpy as np
@@ -88,10 +88,93 @@ class DomainCNN:
     def __init__(self, n_classes, max_words, w2v_size, vocab_size, use_embedding, filter_sizes, n_filters,
                  dense_layer_sizes, name, activation_function, dropout_p):
         self.model = self.build_model(n_classes, max_words, w2v_size, vocab_size, use_embedding, filter_sizes,
-                                      n_filters, dense_layer_sizes, activation_function, dropout_p)
+                                      n_filters, dense_layer_sizes.copy(), activation_function, dropout_p)
         self.model_name = name
         self.conv_layer = None
 
+    def build_conv_node(self, n_feature_maps, max_words, w2v_size, activation_function, filter_sizes, vocab_size,
+                        use_embedding, name, embedding=None):
+
+        conv_input = Input(shape=(max_words, w2v_size), name=name)
+
+        """
+        if use_embedding:
+            assert embedding is not None, 'Make sure you pass the embedding weights!'
+
+            w2v_input = Input(shape=(max_words, ), name=name)
+            conv_input = Embedding(output_dim=w2v_size, input_dim=vocab_size, input_length=max_words,
+                                   weights=[embedding])(w2v_input)
+        else:
+            w2v_input = Input(shape=(1, max_words, w2v_size))
+            conv_input = w2v_input
+
+        """
+        conv_layers = []
+
+        for filter_size in filter_sizes:
+
+            convolution_layer = Convolution1D(n_feature_maps, filter_size, input_shape=(max_words, w2v_size))(conv_input)
+            activation_layer = Activation(activation_function)(convolution_layer)
+            max_layer = MaxPooling1D(pool_length=max_words - filter_size + 1)(activation_layer)
+
+            flattened_layer = Flatten()(max_layer)
+
+            conv_layers.append(flattened_layer)
+
+        merge_layer = merge(conv_layers, mode='concat')
+
+        return merge_layer, conv_input
+
+    def build_model(self, n_classes, max_words, w2v_size, vocab_size, use_embedding, filter_sizes, n_feature_maps,
+                    dense_layer_sizes, activation_function, dropout_p, embedding=None):
+
+        # From the paper http://arxiv.org/pdf/1511.07289v1.pdf
+        # Supposed to perform better but lets see about that
+        if activation_function == 'elu':
+            activation_function = ELU(alpha=1.0)
+
+        abstract_node, abstract_input = self.build_conv_node(n_feature_maps['text'], max_words['text'], w2v_size,
+                                                             activation_function, filter_sizes['text'], vocab_size,
+                                                             use_embedding, 'abstract_input', embedding=embedding)
+        title_node, title_input = self.build_conv_node(n_feature_maps['title'], max_words['title'], w2v_size,
+                                                       activation_function, filter_sizes['title'], vocab_size,
+                                                       use_embedding, 'title_input', embedding=embedding)
+        mesh_node, mesh_input = self.build_conv_node(n_feature_maps['mesh'], max_words['mesh'], w2v_size,
+                                                     activation_function, filter_sizes['mesh'], vocab_size,
+                                                     use_embedding, 'mesh_terms_input', embedding=embedding)
+        # Domain embedding
+        n_domains = 9
+        domain_input = Input(shape=(1, ), dtype='int32')
+        domain_emebedding = Embedding(n_domains, 50, input_length=1)(domain_input)
+        domain_node = Flatten()(domain_emebedding)
+
+        input = [abstract_input, title_input, mesh_input, domain_input]
+
+        merge_layer = merge([abstract_node, title_node, mesh_node, domain_node], mode='concat')
+
+        dense_layers = []
+        first_dense_layer = Dense(dense_layer_sizes.pop(0))(merge_layer)
+        dense_layers.append(first_dense_layer)
+
+        if len(dense_layer_sizes) > 1:
+            i = 1
+
+            for dense_layer_size in dense_layer_sizes:
+                dense_layer = Dense(dense_layer_size)(dense_layer_sizes[i-1])
+                dense_activation_layer = Activation(activation_function)(dense_layer)
+                dropout_layer = Dropout(dropout_p)(dense_activation_layer)
+                dense_layers.append(dropout_layer)
+                i += 1
+
+        # Add last layer
+        softmax_dense_layer = Dense(n_classes)(dense_layers[-1])
+        softmax_layer = Activation('softmax')(softmax_dense_layer)
+
+        model = Model(input=input, output=softmax_layer)
+
+        return model
+
+    """
     def build_model(self, n_classes, max_words, w2v_size, vocab_size, use_embedding, filter_sizes, n_filters,
                     dense_layer_sizes, activation_function, dropout_p):
 
@@ -128,11 +211,11 @@ class DomainCNN:
 
         merge_layer = merge(conv_layers, mode='concat')
 
-      #  concat_layer = merge([merge_layer, domain_node], mode='concat')
+        concat_layer = merge([merge_layer, domain_node], mode='concat')
 
 
         dense_layers = []
-        first_dense_layer = Dense(dense_layer_sizes.pop(0))(merge_layer)
+        first_dense_layer = Dense(dense_layer_sizes.pop(0))(concat_layer)
 
 
         dense_layers.append(first_dense_layer)
@@ -155,9 +238,10 @@ class DomainCNN:
         model = Model(input=[w2v_input, domain_input], output=softmax_layer)
 
         return model
+    """
 
     def train(self, X, y, n_epochs, optim_algo='adagrad', criterion='categorical_crossentropy', save_model=True,
-              verbose=2, plot=True, batch_size=64, fold_idxs=None):
+              plot=True, batch_size=64, fold_idxs=None):
 
         if optim_algo == 'adam':
             optim_algo = Adam()
@@ -189,9 +273,9 @@ class DomainCNN:
                 loss_train_history.append(loss)
                 loss_val_history.append(val_loss)
 
-                truth = self.model.validation_data[2]
+                truth = self.model.validation_data[4]
                 truth = dl.onehot2list(truth)
-                batch_prediction = self.predict_classes(self.model.validation_data[0:2])
+                batch_prediction = self.predict_classes(self.model.validation_data[0:4])
 
                 batch_f1 = metrics.f1_score(truth, batch_prediction)
                 batch_recall = metrics.recall_score(truth, batch_prediction)
@@ -214,15 +298,20 @@ class DomainCNN:
         if save_model:
             self.model.save_weights(self.model_name + '.h5', overwrite=True)
 
-    def test(self, X, y, print_output=False):
+    def test(self, X, y, print_output=False, batch_size=64, indices=None):
         truth = []
-        predictions = self.predict_classes(X)
+        predictions = []
+        batch_generator = StanderedDomainBG(X, y, batch_size=batch_size, shuffle=False, fold_indices=indices)
 
-        for i in range(y.shape[0]):
-            if y[i, 1] == 1:
-                truth.append(1)
-            else:
-                truth.append(0)
+        for X_batch, y_batch in batch_generator.next_batch():
+            batch_predictions = self.predict_classes(X_batch)
+
+            for i in range(y_batch.shape[0]):
+                if y_batch[i, 1] == 1:
+                    truth.append(1)
+                else:
+                    truth.append(0)
+            predictions.extend(batch_predictions)
 
         if print_output:
             print('Ground truth: {}'.format(truth))
@@ -236,8 +325,8 @@ class DomainCNN:
 
         return accuracy, f1_score, precision, auc, recall
 
-    def predict_classes(self, x):
-        predictions = self.model.predict(x)
+    def predict_classes(self, x, batch_size=64):
+        predictions = self.model.predict(x, batch_size=batch_size)
         predicted_classes = np.argmax(predictions, axis=1)
 
         return predicted_classes

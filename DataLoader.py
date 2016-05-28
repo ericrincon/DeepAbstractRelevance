@@ -3,6 +3,7 @@ import pandas as pd
 import nltk
 import h5py
 import os
+import pickle
 
 from nltk.corpus import stopwords
 from sklearn.feature_extraction.text import CountVectorizer
@@ -76,40 +77,69 @@ def load_datasets_from_h5py(path, load_mesh_title=True, load_as_np=False):
     return X_list, y_list
 
 def load_datasets_from_h5py_for_class(path, max_words, w2v_length, save=True):
-    X_list, y_list = load_datasets_from_h5py(path, load_mesh_title=False, load_as_np=False)
+    X_list, y_list = load_datasets_from_h5py(path, load_mesh_title=True, load_as_np=False)
 
     n_examples = 0
     start = 0
 
-
     for _X in X_list:
-        _X = _X['text']
-        n_examples += _X.shape[0]
+        n_examples += _X['text'].shape[0]
 
-    X = np.empty((n_examples, max_words, w2v_length))
+    X_text = np.empty((n_examples, max_words['text'], w2v_length))
+    X_title = np.empty((n_examples, max_words['title'], w2v_length))
+    X_mesh = np.empty((n_examples, max_words['mesh'], w2v_length))
     y = np.empty((n_examples, 2))
     domain_embeddings = np.empty((n_examples, 1))
+    dict_idxs = {}
+    idxs2domain = {}
+    domain2idxs = {}
 
     for i, (_X, __y) in enumerate(zip(X_list, y_list)):
-        _X = _X['text']
+        _X_text = _X['text']
+        _X_title = _X['title']
+        _X_mesh = _X['mesh']
+        n = _X_text.shape[0]
 
+        # Map the indices in the large dataset to the smaller individual
+        # datasets. idxs is the index in the large dataset that consists
+        # of all the domains
+        idxs = [x for x in range(start, start + n)]
+        domain2idxs[i] = {}
+
+        for j, idx in enumerate(idxs):
+            dict_idxs[idx] = j
+            idxs2domain[idx] = i
+            domain2idxs[i][j] = idx
+
+        # Get negative and positive examples and then set the corresponding label
+        # in _y
         neg = np.where(__y[:, 0] == 1)[0]
         pos = np.where(__y[:, 1] == 1)[0]
 
-        _y = np.zeros((_X.shape[0], 2))
+        _y = np.zeros((n, 2))
         _y[neg, 0] = 1
         _y[pos, 1] = 1
 
-        domain_embeddings[start: start + _X.shape[0], 0] = i
+        domain_embeddings[start: start + n, 0] = i
 
-        X[start: start + _X.shape[0], :] = _X
-        y[start: start + _X.shape[0], :] = _y
-        start += _X.shape[0]
+        X_text[start: start + n, :] = _X_text
+        X_title[start: start + n, :] = _X_title
+        X_mesh[start: start + n, :] = _X_mesh
+
+        y[start: start + n, :] = _y
+        start += n
+
     if save:
+        print('N Domains: {}'.format(len(X_list)))
         df = h5py.File('all_domains.hdf5', 'w')
-        df.create_dataset('X', data=X, shape=X.shape)
-        df.create_dataset('y', data=y, shape=y.shape)
+        df.create_dataset('X_text', data=X_text, shape=X_text.shape)
+        df.create_dataset('X_title', data=X_title, shape=X_title.shape)
+        df.create_dataset('X_mesh', data=X_mesh, shape=X_mesh.shape)
         df.create_dataset('de', data=domain_embeddings, shape=domain_embeddings.shape)
+        df.create_dataset('y', data=y, shape=y.shape)
+        pickle.dump(dict_idxs, file=open('dict_idxs.p', 'wb'))
+        pickle.dump(idxs2domain, file=open('idxs2domain.p', 'wb'))
+        pickle.dump(domain2idxs, file=open('domain2idxs.p', 'wb'))
     else:
         return X, y
 
@@ -654,3 +684,4 @@ def undersample_seq(X_abstract_train, X_titles_train, X_mesh_train, y_train):
 
 def onehot2list(y):
     return np.argmax(y, axis=1)
+
