@@ -36,6 +36,7 @@ def df2vocab(data_frames, use_lowercase=False):
 
 def load_dataset_from_h5py(path, load_mesh_title, load_as_np):
     data_frame = h5py.File(path, 'r')
+
     X = {}
 
     X_abstract = data_frame['X_abstract']
@@ -73,6 +74,45 @@ def load_datasets_from_h5py(path, load_mesh_title=True, load_as_np=False):
         y_list.append(y)
 
     return X_list, y_list
+
+def load_datasets_from_h5py_for_class(path, max_words, w2v_length, save=True):
+    X_list, y_list = load_datasets_from_h5py(path, load_mesh_title=False, load_as_np=False)
+
+    n_examples = 0
+    start = 0
+
+
+    for _X in X_list:
+        _X = _X['text']
+        n_examples += _X.shape[0]
+
+    X = np.empty((n_examples, max_words, w2v_length))
+    y = np.empty((n_examples, 2))
+    domain_embeddings = np.empty((n_examples, 1))
+
+    for i, (_X, __y) in enumerate(zip(X_list, y_list)):
+        _X = _X['text']
+
+        neg = np.where(__y[:, 0] == 1)[0]
+        pos = np.where(__y[:, 1] == 1)[0]
+
+        _y = np.zeros((_X.shape[0], 2))
+        _y[neg, 0] = 1
+        _y[pos, 1] = 1
+
+        domain_embeddings[start: start + _X.shape[0], 0] = i
+
+        X[start: start + _X.shape[0], :] = _X
+        y[start: start + _X.shape[0], :] = _y
+        start += _X.shape[0]
+    if save:
+        df = h5py.File('all_domains.hdf5', 'w')
+        df.create_dataset('X', data=X, shape=X.shape)
+        df.create_dataset('y', data=y, shape=y.shape)
+        df.create_dataset('de', data=domain_embeddings, shape=domain_embeddings.shape)
+    else:
+        return X, y
+
 
 
 def texts2seq(texts, sizes, vocab=None, w2v=None, w2v_size=200):
@@ -301,7 +341,7 @@ def build_embeddings(vocab, w2v, w2v_vector_len):
     return embeddings
 
 
-def  get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=False, preprocess_text=False,
+def get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=False, preprocess_text=False,
                         filter_missing=True, filter_small_data=True):
     file_paths = get_all_files('Data')
     X_list, y_list = [], []
