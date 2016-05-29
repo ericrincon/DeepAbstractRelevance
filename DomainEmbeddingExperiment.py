@@ -20,7 +20,7 @@ def main():
         print(error)
         sys.exit(2)
 
-    epochs = 1
+    epochs = 50
 
     criterion = 'categorical_crossentropy'
     optimizer = 'adam'
