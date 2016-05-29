@@ -293,8 +293,6 @@ class DomainCNN:
             print("Epoch Metrics | F1: {} | Recall {} | Precision: {}".format(np.mean(batch_history['f1'][epoch - 1]),
                                                                               np.mean(batch_history['recall'][epoch - 1]),
                                                                               np.mean(batch_history['precision'][epoch - 1])))
-            a_max = np.argmax(batch_history['f1'][epoch - 1])
-            print("Best F1 at Epoch {} Minibatch {}: {}\n".format(epoch, a_max, batch_history['f1'][epoch-1][a_max]))
         if save_model:
             self.model.save_weights(self.model_name + '.h5', overwrite=True)
 

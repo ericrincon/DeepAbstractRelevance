@@ -233,7 +233,7 @@ def main():
 
 
                 accuracy, f1_score, precision, auc, recall = cnn.test(X_abstract_test, X_title_test, X_mesh_test, y_test,
-                                                                  print_output=True)
+                                                                      print_output=True)
 
                 print("Results from training on all data only")
 

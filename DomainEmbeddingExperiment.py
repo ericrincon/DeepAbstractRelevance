@@ -20,7 +20,7 @@ def main():
         print(error)
         sys.exit(2)
 
-    epochs = 50
+    epochs = 1
 
     criterion = 'categorical_crossentropy'
     optimizer = 'adam'
@@ -80,6 +80,7 @@ def main():
         else:
             print("Option {} is not valid!".format(opt))
 
+    metric_types = ['accuracy', 'f1', 'auc', 'precision', 'recall']
 
     if using_tacc:
         nltk.data.path.append('/work/03186/ericr/nltk_data/')
@@ -96,12 +97,14 @@ def main():
     print('Loaded data...')
     print(X_text.shape)
     domain_folds = []
-    domain_names = DataLoader.get_all_files('Data')
+    domain_names = DataLoader.get_all_files('DataProcessed')
     domain_names = [domain_name.split('/')[-1].split('.')[0] for domain_name in domain_names]
+    results = open(experiment_name + 'results.txt', 'w+')
 
-    folds = [[[], []] for i in range(9)]
+    folds = [[[], []] for i in range(5)]
 
     X_list, y_list = DataLoader.load_datasets_from_h5py('DataProcessed', load_mesh_title=True, load_as_np=False)
+    domain_metrics = {}
 
     for i in range(9):
         kf = KFold(X_list[i]['text'].shape[0], random_state=1337, shuffle=True, n_folds=5)
@@ -123,7 +126,12 @@ def main():
 
         domain_folds.append(domain_split)
 
+    print(len(folds))
+
     for fold_idx, (train, test) in enumerate(folds):
+
+        print('Fold: {}'.format(fold_idx + 1))
+        results.write('Fold: {}'.format(fold_idx + 1))
         model_name = experiment_name + str(fold_idx)
         cnn = DomainCNN(n_classes=2,  max_words=max_words, w2v_size=200, vocab_size=1000, use_embedding=False,
                         filter_sizes=filter_sizes, n_filters=n_feature_maps, dense_layer_sizes=dense_sizes,
@@ -140,8 +148,20 @@ def main():
         print("AUC: {}".format(auc))
         print("Recall: {}\n".format(recall))
 
+        results.write('Performance on all data\n')
+        results.write("Accuracy: {}\n".format(accuracy))
+        results.write("F1 score: {}\n".format(f1_score))
+        results.write("AUC: {}\n".format(auc))
+        results.write("Recall: {}\n\n".format(recall))
+
         for domain_i, (domain_name, domain_fold, _X, _y) in enumerate(zip(domain_names, domain_folds, X_list, y_list)):
             _, test_domain = domain_fold[fold_idx]
+            domain_metrics[domain_name] = {}
+
+            # Set up the metric types
+            for metric_type in metric_types:
+                domain_metrics[domain_name][metric_type] = []
+
             X_domain = np.empty((_X['text'].shape[0], 1))
             X_domain[:, 0] = domain_i
 
@@ -154,9 +174,33 @@ def main():
             print("AUC: {}".format(auc))
             print("Recall: {}\n".format(recall))
 
+            results.write('Performance on {}\n'.format(domain_name))
+            results.write("Accuracy: {}\n".format(accuracy))
+            results.write("F1 score: {}\n".format(f1_score))
+            results.write("AUC: {}\n".format(auc))
+            results.write("Recall: {}\n\n".format(recall))
+
+            domain_metrics[domain_name]['accuracy'].append(accuracy)
+            domain_metrics[domain_name]['f1'].append(f1_score)
+            domain_metrics[domain_name]['recall'].append(recall)
+            domain_metrics[domain_name]['precision'].append(precision)
+            domain_metrics[domain_name]['auc'].append(auc)
+
         print('-------------------------------------------------------')
+        results.write('-------------------------------------------------------\n')
 
+    print('Results over all folds')
+    results.write('Results over all folds\n')
 
+    for domain_name in domain_names:
+        print(domain_name)
+        results.write(domain_name + '\n')
 
+        for metric_type in metric_types:
+            avg_metric = np.mean(domain_metrics[domain_name][metric_type])
+            print('Fold average for {}: {}'.format(metric_type, avg_metric))
+            results.write('Fold average for {}: {}\n'.format(metric_type, avg_metric))
+        results.write('\n')
+        print('\n')
 if __name__ == '__main__':
     main()
