@@ -15,7 +15,7 @@ def main():
         opts, args = getopt.getopt(sys.argv[1:], '', ['n_feature_maps=', 'epochs=', 'max_words=', 'dropout_p=',
                                                       'criterion=', 'optimizer=', 'max_words=', 'layers=',
                                                       'experiment_name=', 'w2v_path=', 'tacc=',
-                                                      'baseline=', 'save_model='])
+                                                      'baseline=', 'save_model=', 'use_domain_embedding='])
     except getopt.GetoptError as error:
         print(error)
         sys.exit(2)
@@ -77,6 +77,11 @@ def main():
         elif opt == '--tacc':
             if int(arg) == 1:
                 using_tacc = True
+        elif opt == '--use_domain_embedding':
+            if int(arg) == 1:
+                use_domain_embedding = True
+            elif int(arg) == 0:
+                use_domain_embedding = False
 
         else:
             print("Option {} is not valid!".format(opt))
