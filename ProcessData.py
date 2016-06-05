@@ -7,7 +7,7 @@ from gensim.models import Word2Vec
 def main():
     try:
         opts, args = getopt.getopt(sys.argv[1:], '', ['max_words_abstract=', 'max_words_title=', 'max_words_mesh=',
-                                                      'path=', 'w2v_path=', 'w2v_length='])
+                                                      'path=', 'w2v_path=', 'w2v_length=', '=filter_small_data'])
 
     except getopt.GetoptError as error:
         print(error)
@@ -17,9 +17,7 @@ def main():
     path = 'Data/'
     w2v_path = '/Users/ericrincon/PycharmProjects/Deep-PICO/wikipedia-pubmed-and-PMC-w2v.bin'
     word_vector_size = 200
-    filter_small_data = True
-
-
+    filter_small_data = False
 
     for opt, arg in opts:
         if opt == '--max_words_abstract':
@@ -32,6 +30,12 @@ def main():
             path = arg
         elif opt == '--w2v_path':
             w2v_path = arg
+        elif opt == '--filter_small_data':
+            if int(arg) == 1:
+                filter_small_data = True
+            elif int(arg):
+                filter_small_data = False
+
 
     print('Loading word2vec...')
     w2v = Word2Vec.load_word2vec_format(w2v_path, binary=True)

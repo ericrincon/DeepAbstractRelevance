@@ -6,7 +6,7 @@ import pickle
 import DataLoader
 import numpy as np
 
-from CNN import DomainCNN
+from CNN import DomainCNN, AbstractCNN
 from sklearn.cross_validation import KFold
 
 
@@ -29,8 +29,9 @@ def main():
     word_vector_size = 200
     using_tacc = False
     p = .5
-    save_model = True
-    print_output = False
+    save_model = False
+    print_output = True
+    use_domain_embedding = False
     dense_sizes = [400, 400]
     max_words = {'text': 270, 'mesh': 50, 'title': 17}
 
@@ -90,24 +91,27 @@ def main():
     X_text = data['X_text']
     X_title = data['X_title']
     X_mesh = data['X_mesh']
-    X_embedding = data['de']
-    X = [X_text, X_title, X_mesh, X_embedding]
+
+    X = [X_text, X_title, X_mesh]
+    if use_domain_embedding:
+        X_embedding = data['de']
+        X.append(X_embedding)
+
     y = data['y']
     domain2idxs = pickle.load(open('domain2idxs.p', 'rb'))
+    domain2embedding = pickle.load(open('domain2embedding.p', 'rb'))
     print('Loaded data...')
     print(X_text.shape)
     domain_folds = []
-    domain_names = DataLoader.get_all_files('DataProcessed')
-    domain_names = [domain_name.split('/')[-1].split('.')[0] for domain_name in domain_names]
     results = open(experiment_name + 'results.txt', 'w+')
 
     folds = [[[], []] for i in range(5)]
 
-    X_list, y_list = DataLoader.load_datasets_from_h5py('DataProcessed', load_mesh_title=True, load_as_np=False)
+    X_list, y_list, domain_names = DataLoader.load_datasets_from_h5py('DataProcessed', load_mesh_title=True, load_as_np=False)
     domain_metrics = {}
 
-    for i in range(9):
-        kf = KFold(X_list[i]['text'].shape[0], random_state=1337, shuffle=True, n_folds=5)
+    for _X, name in zip(X_list, domain_names):
+        kf = KFold(_X['text'].shape[0], random_state=1337, shuffle=True, n_folds=5)
         domain_split = []
 
         for fold_i, (train, test) in enumerate(kf):
@@ -115,10 +119,10 @@ def main():
             test_fold = []
 
             for train_idx in train:
-                train_fold.append(domain2idxs[i][train_idx])
+                train_fold.append(domain2idxs[name][train_idx])
 
             for test_idx in test:
-                test_fold.append(domain2idxs[i][test_idx])
+                test_fold.append(domain2idxs[name][test_idx])
 
             domain_split.append((train, test))
             folds[fold_i][0].extend(train_fold)
@@ -127,15 +131,27 @@ def main():
         domain_folds.append(domain_split)
 
     print(len(folds))
+    for fold_idx, (train, test) in enumerate(folds):
+        intersect = set(train).intersection(test)
+        print("Intersect: {}".format(intersect))
+        print("Check if train and test indices intersect: {}".format(not (len(intersect) == 0)))
+        print(train)
+        print(test)
 
     for fold_idx, (train, test) in enumerate(folds):
 
         print('Fold: {}'.format(fold_idx + 1))
         results.write('Fold: {}'.format(fold_idx + 1))
         model_name = experiment_name + str(fold_idx)
-        cnn = DomainCNN(n_classes=2,  max_words=max_words, w2v_size=200, vocab_size=1000, use_embedding=False,
-                        filter_sizes=filter_sizes, n_filters=n_feature_maps, dense_layer_sizes=dense_sizes,
-                        name=model_name, activation_function=activation, dropout_p=p)
+
+        if use_domain_embedding:
+            cnn = DomainCNN(n_classes=2,  max_words=max_words, w2v_size=200, vocab_size=1000, use_embedding=False,
+                            filter_sizes=filter_sizes, n_filters=n_feature_maps, dense_layer_sizes=dense_sizes,
+                            name=model_name, activation_function=activation, dropout_p=p, n_domains=len(domain_names))
+        else:
+            cnn = AbstractCNN(n_classes=2,  max_words=max_words, w2v_size=200, vocab_size=1000, use_embedding=False,
+                              filter_sizes=filter_sizes, n_feature_maps=n_feature_maps, dense_layer_sizes=dense_sizes.copy(),
+                              name='baseline', activation_function=activation, dropout_p=p, embedding=False)
 
         cnn.train(X, y, n_epochs=epochs, optim_algo=optimizer, criterion=criterion,
                   save_model=save_model, fold_idxs=train)
@@ -162,10 +178,14 @@ def main():
             for metric_type in metric_types:
                 domain_metrics[domain_name][metric_type] = []
 
-            X_domain = np.empty((_X['text'].shape[0], 1))
-            X_domain[:, 0] = domain_i
 
-            X_test = [_X['text'], _X['title'], _X['mesh'], X_domain]
+
+            X_test = [_X['text'], _X['title'], _X['mesh']]
+
+            if use_domain_embedding:
+                X_domain = np.empty((_X['text'].shape[0], 1))
+                X_domain[:, 0] = domain2embedding[domain_name]
+                X_test.append(X_domain)
             accuracy, f1_score, precision, auc, recall = cnn.test(X_test, _y, print_output, indices=test_domain)
 
             print('Performance on {}'.format(domain_name))

@@ -6,7 +6,12 @@ import math
 """
 class ImbalancedBBG:
 
-    def __init__(self, X, y, batch_size, shuffle=True, pos_p=.5):
+    def __init__(self, X, y, batch_size, shuffle=True, pos_p=.5, idxs=None):
+
+        if idxs is None:
+            self.indices = [i for i in range(X[0].shape[0])]
+        else :
+            self.indices = idxs
         pos_idx, neg_idx = self._get_pos_ned_idx(y)
 
         self.pos_idx = pos_idx
@@ -48,8 +53,8 @@ class ImbalancedBBG:
                 yield self._create_batch(pos_idxs, neg_idxs)
 
     def _get_pos_ned_idx(self, y):
-        pos_idx = np.where(y[:, 0] == 1)[0]
-        neg_idx = np.where(y[:, 1] == 1)[0]
+        pos_idx = np.where(y[self.indices, 0] == 1)[0]
+        neg_idx = np.where(y[self.indices, 1] == 1)[0]
 
         return pos_idx, neg_idx
 
@@ -57,11 +62,13 @@ class ImbalancedBBG:
         idxs = np.array([x for x in range(self.batch_size)])
         np.random.shuffle(idxs)
 
-        X_abstract_batch = np.vstack((self.X_abstract[pos_idx], self.X_abstract[neg_idx]))
-        X_title_batch = np.vstack((self.X_title[pos_idx], self.X_title[neg_idx]))
-        X_mesh_batch = np.vstack((self.X_mesh[pos_idx], self.X_mesh[neg_idx]))
-        y_batch = np.vstack((self.y[pos_idx], self.y[neg_idx]))
+        pos_idx = np.sort(pos_idx)
+        neg_idx = np.sort(neg_idx)
 
+        X_abstract_batch = np.vstack((self.X_abstract[pos_idx, :, :], self.X_abstract[neg_idx, :, :]))
+        X_title_batch = np.vstack((self.X_title[pos_idx, :, :], self.X_title[neg_idx, :, :]))
+        X_mesh_batch = np.vstack((self.X_mesh[pos_idx, :, :], self.X_mesh[neg_idx, :, :]))
+        y_batch = np.vstack((self.y[pos_idx, :], self.y[neg_idx, :]))
         return [X_abstract_batch[idxs], X_title_batch[idxs], X_mesh_batch[idxs]], y_batch[idxs]
 
 class StanderedDomainBG:

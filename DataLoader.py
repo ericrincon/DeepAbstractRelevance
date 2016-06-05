@@ -67,17 +67,19 @@ def load_datasets_from_h5py(path, load_mesh_title=True, load_as_np=False):
     files = get_all_files(path)
     X_list = []
     y_list = []
+    names = []
 
     for file in files:
         X, y = load_dataset_from_h5py(file, load_mesh_title, load_as_np)
-
+        name = file.split('/')[-1].split('.')[0]
         X_list.append(X)
         y_list.append(y)
+        names.append(name)
 
-    return X_list, y_list
+    return X_list, y_list, names
 
 def load_datasets_from_h5py_for_class(path, max_words, w2v_length, save=True):
-    X_list, y_list = load_datasets_from_h5py(path, load_mesh_title=True, load_as_np=False)
+    X_list, y_list, names = load_datasets_from_h5py(path, load_mesh_title=True, load_as_np=False)
 
     n_examples = 0
     start = 0
@@ -93,23 +95,25 @@ def load_datasets_from_h5py_for_class(path, max_words, w2v_length, save=True):
     dict_idxs = {}
     idxs2domain = {}
     domain2idxs = {}
+    domain2embedding = {}
+    total_examples = 0
 
-    for i, (_X, __y) in enumerate(zip(X_list, y_list)):
+    for i, (name, _X, __y) in enumerate(zip(names, X_list, y_list)):
         _X_text = _X['text']
         _X_title = _X['title']
         _X_mesh = _X['mesh']
         n = _X_text.shape[0]
-
+        total_examples += n
         # Map the indices in the large dataset to the smaller individual
         # datasets. idxs is the index in the large dataset that consists
         # of all the domains
         idxs = [x for x in range(start, start + n)]
-        domain2idxs[i] = {}
+        domain2idxs[name] = {}
 
         for j, idx in enumerate(idxs):
             dict_idxs[idx] = j
-            idxs2domain[idx] = i
-            domain2idxs[i][j] = idx
+            idxs2domain[idx] = name
+            domain2idxs[name][j] = idx
 
         # Get negative and positive examples and then set the corresponding label
         # in _y
@@ -119,7 +123,7 @@ def load_datasets_from_h5py_for_class(path, max_words, w2v_length, save=True):
         _y = np.zeros((n, 2))
         _y[neg, 0] = 1
         _y[pos, 1] = 1
-
+        domain2embedding[name] = i
         domain_embeddings[start: start + n, 0] = i
 
         X_text[start: start + n, :] = _X_text
@@ -130,6 +134,7 @@ def load_datasets_from_h5py_for_class(path, max_words, w2v_length, save=True):
         start += n
 
     if save:
+        print("N examples: {}".format(total_examples))
         print('N Domains: {}'.format(len(X_list)))
         df = h5py.File('all_domains.hdf5', 'w')
         df.create_dataset('X_text', data=X_text, shape=X_text.shape)
@@ -140,6 +145,7 @@ def load_datasets_from_h5py_for_class(path, max_words, w2v_length, save=True):
         pickle.dump(dict_idxs, file=open('dict_idxs.p', 'wb'))
         pickle.dump(idxs2domain, file=open('idxs2domain.p', 'wb'))
         pickle.dump(domain2idxs, file=open('domain2idxs.p', 'wb'))
+        pickle.dump(domain2embedding, file=open('domain2embedding.p', 'wb'))
     else:
         return X, y
 
@@ -387,8 +393,9 @@ def get_data_separately(max_words, word_vector_size, w2v, use_abstract_cnn=False
         data_frame = pd.read_csv(file)
         names.append(file.split('/')[1].split('.')[0])
 
-        if data_frame.shape[0] < 800:
-            continue
+        if filter_small_data:
+            if data_frame.shape[0] < 800:
+                continue
 
         abstract_text, abstract_labels = extract_abstract_and_labels(data_frame)
         mesh_terms, title = extract_mesh_and_title(data_frame)

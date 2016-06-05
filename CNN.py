@@ -13,7 +13,7 @@ from keras.callbacks import EarlyStopping
 from keras.constraints import maxnorm
 
 from BatchGenerator import ImbalancedBBG, StanderedBG, DomainBG, StanderedDomainBG
-
+from sklearn.cross_validation import train_test_split
 import sklearn.metrics as metrics
 import numpy as np
 import DataLoader as dl
@@ -86,9 +86,9 @@ class NLPCNN:
 
 class DomainCNN:
     def __init__(self, n_classes, max_words, w2v_size, vocab_size, use_embedding, filter_sizes, n_filters,
-                 dense_layer_sizes, name, activation_function, dropout_p):
+                 dense_layer_sizes, name, activation_function, dropout_p, n_domains):
         self.model = self.build_model(n_classes, max_words, w2v_size, vocab_size, use_embedding, filter_sizes,
-                                      n_filters, dense_layer_sizes.copy(), activation_function, dropout_p)
+                                      n_filters, dense_layer_sizes.copy(), activation_function, dropout_p, n_domains)
         self.model_name = name
         self.conv_layer = None
 
@@ -126,7 +126,7 @@ class DomainCNN:
         return merge_layer, conv_input
 
     def build_model(self, n_classes, max_words, w2v_size, vocab_size, use_embedding, filter_sizes, n_feature_maps,
-                    dense_layer_sizes, activation_function, dropout_p, embedding=None):
+                    dense_layer_sizes, activation_function, dropout_p, n_domains, embedding=None):
 
         # From the paper http://arxiv.org/pdf/1511.07289v1.pdf
         # Supposed to perform better but lets see about that
@@ -143,7 +143,6 @@ class DomainCNN:
                                                      activation_function, filter_sizes['mesh'], vocab_size,
                                                      use_embedding, 'mesh_terms_input', embedding=embedding)
         # Domain embedding
-        n_domains = 9
         domain_input = Input(shape=(1, ), dtype='int32')
         domain_emebedding = Embedding(n_domains, 50, input_length=1)(domain_input)
         domain_node = Flatten()(domain_emebedding)
@@ -174,72 +173,6 @@ class DomainCNN:
 
         return model
 
-    """
-    def build_model(self, n_classes, max_words, w2v_size, vocab_size, use_embedding, filter_sizes, n_filters,
-                    dense_layer_sizes, activation_function, dropout_p):
-
-        # From the paper http://arxiv.org/pdf/1511.07289v1.pdf
-        # Supposed to perform better but lets see about that
-        if activation_function == 'elu':
-            activation_function = ELU(alpha=1.0)
-        else:
-            activation_function = Activation(activation_function)
-
-        if use_embedding:
-            w2v_input = Input(shape=(max_words, ))
-            conv_input = Embedding(output_dim=w2v_size, input_dim=vocab_size, input_length=max_words)(w2v_input)
-        else:
-            w2v_input = Input(shape=(max_words, w2v_size))
-            conv_input = w2v_input
-        conv_layers = []
-
-        for filter_size in filter_sizes:
-            convolution_layer = Convolution1D(nb_filter=n_filters, input_dim=max_words, filter_length=filter_size,
-                                              input_shape=(max_words, w2v_size))(conv_input)
-            activation_layer = Activation(activation_function)(convolution_layer)
-
-            max_pooling = MaxPooling1D(pool_length=(max_words - filter_size + 1))(activation_layer)
-            flattened_layer = Flatten()(max_pooling)
-
-            conv_layers.append(flattened_layer)
-
-        # Domain embedding
-        n_domains = 9
-        domain_input = Input(shape=(1, ), dtype='int32')
-        domain_emebedding = Embedding(n_domains, 50, input_length=1)(domain_input)
-        domain_node = Flatten()(domain_emebedding)
-
-        merge_layer = merge(conv_layers, mode='concat')
-
-        concat_layer = merge([merge_layer, domain_node], mode='concat')
-
-
-        dense_layers = []
-        first_dense_layer = Dense(dense_layer_sizes.pop(0))(concat_layer)
-
-
-        dense_layers.append(first_dense_layer)
-
-        if len(dense_layer_sizes) > 1:
-            i = 1
-
-            for dense_layer_size in dense_layer_sizes:
-                dense_layer = Dense(dense_layer_size)(dense_layer_sizes[i-1])
-                dense_activation_layer = Activation(activation_function)(dense_layer)
-                dropout_layer = Dropout(dropout_p)(dense_activation_layer)
-                dense_layers.append(dropout_layer)
-                i += 1
-
-        # Add last layer
-
-        softmax_dense_layer = Dense(n_classes)(dense_layers[-1])
-        softmax_layer = Activation('softmax')(softmax_dense_layer)
-
-        model = Model(input=[w2v_input, domain_input], output=softmax_layer)
-
-        return model
-    """
-
     def train(self, X, y, n_epochs, optim_algo='adagrad', criterion='categorical_crossentropy', save_model=True,
               plot=True, batch_size=64, fold_idxs=None):
 
@@ -252,12 +185,33 @@ class DomainCNN:
 
         self.model.compile(optimizer=optim_algo, loss=criterion)
 
-        batch_generator = DomainBG(X, y, batch_size, pos_p=.7, fold_indices=fold_idxs)
+        test_split = .2
+        idxs = np.array([x for x in range(len(fold_idxs))])
+
+        np.random.shuffle(idxs)
+        test_split_stop = round(len(idxs) * test_split)
+
+        train_idxs, valid_idxs = idxs[:test_split_stop], idxs[test_split_stop + 1:]
+
+        # Sort because accessing h5py requires it
+        np.sort(train_idxs)
+        np.sort(valid_idxs)
+
+        print()
+
+        valid_data = [x[valid_idxs, :, :] for i, x in enumerate(X) if i < len(X) - 1]
+        valid_data.append(X[valid_idxs, :])
+
+        batch_generator = DomainBG(X, y, batch_size, pos_p=.7, fold_indices=train_idxs)
 
 
         loss_train_history = []
         loss_val_history = []
         batch_history = {'f1': [], 'recall': [], 'precision': []}
+
+
+        # @TODO Fix the valid split for the fit model. It is too small since it is basing off mini batch although
+        # I don't think its that big of a deal....
 
         for epoch in range(1, n_epochs + 1):
             batch_f1_history = []
@@ -266,7 +220,7 @@ class DomainCNN:
 
             for X, y in batch_generator.next_batch():
                 history = self.model.fit(X, y, nb_epoch=1, batch_size=batch_size,
-                                         validation_split=0.2, verbose=0)
+                                         verbose=0, validation_data=valid_data)
 
                 val_loss, loss = history.history['val_loss'][0], history.history['loss'][0]
 
@@ -309,6 +263,7 @@ class DomainCNN:
                     truth.append(1)
                 else:
                     truth.append(0)
+
             predictions.extend(batch_predictions)
 
         if print_output:
@@ -688,10 +643,10 @@ class AbstractCNN:
 
         return model
 
-    def train(self, X_abstract, X_titles, X_mesh, y, n_epochs, optim_algo='adam',
+    def train(self, X, y, n_epochs, optim_algo='adam',
               criterion='categorical_crossentropy', save_model=True, verbose=2,
               plot=True, tensorBoard_path='', patience=20, use_tensorboard=False,
-              batch_size=64):
+              batch_size=64, fold_idxs=None):
 
         if optim_algo == 'adam':
             optim_algo = Adam()
@@ -702,7 +657,7 @@ class AbstractCNN:
 
         self.model.compile(optimizer=optim_algo, loss=criterion)
 
-        batch_generator = ImbalancedBBG([X_abstract, X_titles, X_mesh], y, batch_size, pos_p=.8)
+        batch_generator = ImbalancedBBG(X, y, batch_size, pos_p=.8)
 
 
         loss_train_history = []
